@@ -1,6 +1,9 @@
 use super::{OngoingStroke, Stroke};
 
-use crate::{canvas::tool::PenConfig, util::space::*};
+use crate::{
+  canvas::{tool::PenConfig, CanvasPortal},
+  util::space::*,
+};
 
 use replace_with::replace_with_or_default;
 use winit::{
@@ -8,7 +11,7 @@ use winit::{
   window::Window,
 };
 
-const SAMPLE_DISTANCE_TOLERANCE: CanvasViewportLength = CanvasViewportLength::new(1.0 / 1000.0);
+const SAMPLE_DISTANCE_TOLERANCE: PortalLength = PortalLength::new(1.0 / 1000.0);
 
 #[derive(Default)]
 pub struct SampledStroke {
@@ -16,16 +19,16 @@ pub struct SampledStroke {
 }
 
 pub struct InteractionSample {
-  pub pos: CanvasViewportPoint,
+  pub pos: PortalPoint,
   pub force: Option<f32>,
 }
 
 pub fn handle_event(
   event: &crate::Event,
   window: &Window,
-  stroke: &mut OngoingStroke,
-  ui_box: WindowLogicalBox,
+  portal: &CanvasPortal,
   pen_config: &PenConfig,
+  stroke: &mut OngoingStroke,
 ) {
   if let event::Event::WindowEvent {
     window_id: _,
@@ -36,7 +39,7 @@ pub fn handle_event(
       WindowEvent::Touch(touch) => {
         let pos = WindowPhysicalPoint::from_underlying(touch.location);
         let pos = WindowLogicalPoint::from_physical(pos, window.scale_factor() as f32);
-        let pos = CanvasViewportPoint::from_window_logical(pos, ui_box);
+        let pos = PortalPoint::try_from_window_logical(pos, portal);
         if let Some(pos) = pos {
           try_record_sample(
             InteractionSample {
@@ -50,7 +53,7 @@ pub fn handle_event(
       WindowEvent::CursorMoved { position, .. } => {
         let pos = WindowPhysicalPoint::from_underlying(*position);
         let pos = WindowLogicalPoint::from_physical(pos, window.scale_factor() as f32);
-        let pos = CanvasViewportPoint::from_window_logical(pos, ui_box);
+        let pos = PortalPoint::try_from_window_logical(pos, portal);
         if let Some(pos) = pos {
           try_record_sample(InteractionSample { pos, force: None }, stroke);
         }

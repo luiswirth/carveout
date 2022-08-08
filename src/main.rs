@@ -8,6 +8,7 @@ mod util;
 use crate::{canvas::Canvas, gfx::Gfx, ui::Ui};
 
 use winit::{event_loop::ControlFlow, window::Window};
+
 pub type CustomEvent = ();
 pub type Event<'a> = winit::event::Event<'a, CustomEvent>;
 pub type EventLoop = winit::event_loop::EventLoop<CustomEvent>;
@@ -15,7 +16,6 @@ pub type EventLoop = winit::event_loop::EventLoop<CustomEvent>;
 pub struct Application {
   event_loop: Option<EventLoop>,
   window: Window,
-
   gfx: Gfx,
   ui: Ui,
 
@@ -31,7 +31,6 @@ impl Application {
       .with_title(env!("CARGO_PKG_NAME"))
       .build(&event_loop)
       .expect("Fatal error: Failed to create winit window.");
-
     let gfx = Gfx::init(&window).await;
     let mut ui = Ui::init(&event_loop, gfx.wgpu().device());
 
@@ -40,7 +39,6 @@ impl Application {
     Self {
       event_loop: Some(event_loop),
       window,
-
       gfx,
       ui,
 
@@ -93,14 +91,14 @@ impl Application {
   fn update(&mut self) {}
 
   fn render(&mut self) {
-    self.gfx.render(|encoder, rt, wgpu| {
+    self.gfx.render(|wgpu, encoder, render_target| {
       self.canvas.render(wgpu.device(), wgpu.queue(), encoder);
       self.ui.render(
         &self.window,
         wgpu.device(),
         wgpu.queue(),
         encoder,
-        rt,
+        render_target,
         &mut self.canvas,
       );
     });

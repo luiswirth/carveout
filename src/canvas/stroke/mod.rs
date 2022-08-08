@@ -3,8 +3,6 @@ mod render;
 mod sample;
 mod tessellate;
 
-use crate::util;
-
 pub use self::{render::StrokeRenderer, tessellate::StrokeTessellator};
 
 pub use self::{path::PathStroke, sample::SampledStroke, tessellate::TessallatedStroke};
@@ -12,7 +10,7 @@ pub use self::{path::PathStroke, sample::SampledStroke, tessellate::TessallatedS
 use palette::LinSrgb;
 use replace_with::replace_with_or_default;
 
-use super::{tool::PenConfig, CanvasViewport};
+use super::{tool::PenConfig, CanvasPortal};
 
 pub struct StrokeManager {
   ongoing_stroke: OngoingStroke,
@@ -41,10 +39,10 @@ impl StrokeManager {
     &mut self,
     event: &crate::Event,
     window: &winit::window::Window,
-    ui_box: util::space::WindowLogicalBox,
+    portal: &CanvasPortal,
     pen_config: &PenConfig,
   ) {
-    sample::handle_event(event, window, &mut self.ongoing_stroke, ui_box, pen_config);
+    sample::handle_event(event, window, portal, pen_config, &mut self.ongoing_stroke);
   }
 
   pub fn render(
@@ -52,12 +50,11 @@ impl StrokeManager {
     device: &wgpu::Device,
     queue: &wgpu::Queue,
     encoder: &mut wgpu::CommandEncoder,
-    render_target: &wgpu::TextureView,
-    viewport: &CanvasViewport,
+    portal: &CanvasPortal,
   ) {
     replace_with_or_default(&mut self.ongoing_stroke, |c| match c {
       OngoingStroke::Ongoing(mut c) => {
-        c.path = PathStroke::new(&c.sampled, viewport);
+        c.path = PathStroke::new(&c.sampled, portal);
         c.tessellated = self.tessellator.tessellate(&c.path, &c.shared_info);
         OngoingStroke::Ongoing(c)
       }
@@ -72,13 +69,12 @@ impl StrokeManager {
       device,
       queue,
       encoder,
-      render_target,
-      &mut self
+      portal,
+      self
         .finished_strokes
         .iter_mut()
         .chain(self.ongoing_stroke.as_ongoing_mut())
         .map(|c| &mut c.tessellated),
-      viewport,
     );
   }
 }

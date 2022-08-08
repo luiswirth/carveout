@@ -1,6 +1,6 @@
 use crate::util;
 
-use super::{CanvasViewport, TessallatedStroke};
+use super::{CanvasPortal, TessallatedStroke};
 
 use palette::LinSrgba;
 use std::{borrow::Cow, mem};
@@ -9,7 +9,7 @@ use std::{borrow::Cow, mem};
 pub struct StrokeRenderer {
   pipeline: wgpu::RenderPipeline,
   bind_group: wgpu::BindGroup,
-  viewport_ubo: wgpu::Buffer,
+  globals_ubo: wgpu::Buffer,
 }
 
 impl StrokeRenderer {
@@ -99,7 +99,7 @@ impl StrokeRenderer {
     Self {
       pipeline,
       bind_group,
-      viewport_ubo: globals_ubo,
+      globals_ubo,
     }
   }
 
@@ -108,22 +108,21 @@ impl StrokeRenderer {
     device: &wgpu::Device,
     queue: &wgpu::Queue,
     encoder: &mut wgpu::CommandEncoder,
-    render_target: &wgpu::TextureView,
+    portal: &CanvasPortal,
     tessellated_strokes: impl IntoIterator<Item = &'a mut TessallatedStroke>,
-    viewport: &CanvasViewport,
   ) {
     queue.write_buffer(
-      &self.viewport_ubo,
+      &self.globals_ubo,
       0,
       bytemuck::cast_slice(&[Globals {
-        viewport_transform: viewport.transform,
+        canvas_to_portal: portal.canvas_to_portal(),
       }]),
     );
 
     let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
       label: None,
       color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-        view: render_target,
+        view: portal.render_target(),
         ops: wgpu::Operations {
           load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
           store: true,
@@ -145,8 +144,7 @@ impl StrokeRenderer {
 #[repr(C)]
 #[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
 struct Globals {
-  viewport_transform:
-    euclid::Transform2D<f32, util::space::CanvasSpace, util::space::CanvasViewportSpace>,
+  canvas_to_portal: euclid::Transform2D<f32, util::space::CanvasSpace, util::space::PortalSpace>,
 }
 
 #[repr(C)]

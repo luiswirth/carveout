@@ -1,6 +1,6 @@
 use palette::{FromColor, Hsv, IntoColor};
 
-use crate::canvas::tool::{ToolConfig, ToolEnum};
+use crate::canvas::{tool::ToolEnum, Canvas};
 
 pub struct SidebarUi {
   rainbow_mode: bool,
@@ -13,7 +13,7 @@ impl SidebarUi {
     }
   }
 
-  pub fn build_ui(&mut self, ctx: &egui::Context, tool_config: &mut ToolConfig) {
+  pub fn ui(&mut self, ctx: &egui::Context, canvas: &mut Canvas) {
     egui::SidePanel::left("toolbox_panel").show(ctx, |ui| {
       ui.add_space(10.0);
       ui.add(egui::Label::new(
@@ -23,18 +23,20 @@ impl SidebarUi {
 
       ui.group(|ui| {
         ui.label("Tools");
+        let selected = &mut canvas.tool_config_mut().selected;
 
         ui.horizontal_wrapped(|ui| {
-          selectable_tool(ui, &mut tool_config.selected, ToolEnum::Pen, "✏");
-          selectable_tool(ui, &mut tool_config.selected, ToolEnum::Translate, "✋");
-          selectable_tool(ui, &mut tool_config.selected, ToolEnum::Scale, "🔍");
+          selectable_tool(ui, selected, ToolEnum::Pen, "✏");
+          selectable_tool(ui, selected, ToolEnum::Translate, "✋");
+          selectable_tool(ui, selected, ToolEnum::Rotate, "🔄");
+          selectable_tool(ui, selected, ToolEnum::Scale, "🔍");
         });
 
         ui.separator();
 
-        match tool_config.selected {
+        match selected {
           ToolEnum::Pen => {
-            let mut pen = &mut tool_config.pen;
+            let mut pen = &mut canvas.tool_config_mut().pen;
 
             ui.label("Pen color");
             let color = pen.color.into_components();
@@ -54,29 +56,32 @@ impl SidebarUi {
             ui.label("Pen width");
             ui.add(egui::Slider::new(&mut pen.width, 0.1..=10.0));
           }
-          ToolEnum::Scale => {
-            ui.label("Scale options");
-            //let mut scale = CONFIG.lock().unwrap().canvas_viewport.scale;
-            //const SPEED_MUL: f32 = 0.003;
-            //let speed = scale * SPEED_MUL;
-            //ui.add(
-            //  egui::DragValue::new(&mut scale)
-            //    .clamp_range(0.1..=10.0)
-            //    .speed(speed),
-            //);
-            //CONFIG.lock().unwrap().canvas_viewport.scale = scale;
-          }
           ToolEnum::Translate => {
             ui.label("Translate option");
-            //let mut translate = CONFIG.lock().unwrap().canvas_viewport.translate;
-            //ui.horizontal(|ui| {
-            //  const SPEED: f32 = 0.001;
-            //  ui.colored_label(egui::Color32::RED, "X:");
-            //  ui.add(egui::DragValue::new(&mut translate[0]).speed(SPEED));
-            //  ui.colored_label(egui::Color32::BLUE, "Y:");
-            //  ui.add(egui::DragValue::new(&mut translate[1]).speed(SPEED));
-            //});
-            //CONFIG.lock().unwrap().canvas_viewport.translate = translate;
+            let position = &mut canvas.portal_mut().position_canvas;
+            ui.horizontal(|ui| {
+              const SPEED: f32 = 0.001;
+              ui.colored_label(egui::Color32::RED, "X:");
+              ui.add(egui::DragValue::new(&mut position.x).speed(SPEED));
+              ui.colored_label(egui::Color32::BLUE, "Y:");
+              ui.add(egui::DragValue::new(&mut position.y).speed(SPEED));
+            });
+          }
+          ToolEnum::Rotate => {
+            ui.label("Rotate option");
+            let rotation = &mut canvas.portal_mut().rotation_canvas;
+            ui.add(egui::Slider::new(rotation, 0.0..=std::f32::consts::TAU));
+          }
+          ToolEnum::Scale => {
+            ui.label("Scale options");
+            let scale = &mut canvas.portal_mut().scale_canvas;
+            const SPEED_MUL: f32 = 0.003;
+            let speed = *scale * SPEED_MUL;
+            ui.add(
+              egui::DragValue::new(scale)
+                .clamp_range(0.1..=10.0)
+                .speed(speed),
+            );
           }
         }
       });

@@ -46,8 +46,7 @@ impl UiRenderTarget {
   ) -> egui::Response {
     let physical_size = logical_size * ui.input().pixels_per_point();
     self.check_resize(device, ui_renderer, physical_size);
-    // TODO: what `egui::Sense` do we want?
-    ui.add(egui::Image::new(self.ui_texture_id, logical_size).sense(egui::Sense::click_and_drag()))
+    ui.add(egui::Image::new(self.ui_texture_id, logical_size).sense(egui::Sense::hover()))
   }
 
   pub fn view(&self) -> &wgpu::TextureView {
@@ -69,7 +68,9 @@ impl UiRenderTarget {
       let curr_size = &mut self.texture_descriptor.size;
       [&mut curr_size.width, &mut curr_size.height]
     };
-    if *curr_width == new_width && *curr_height == new_height {
+    let same_size = *curr_width == new_width && *curr_height == new_height;
+    let no_size = new_width == 0 || new_height == 0;
+    if same_size || no_size {
       return;
     }
 

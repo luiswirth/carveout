@@ -4,7 +4,7 @@ struct VertexOutput {
 };
 
 struct Globals {
-  viewport_transform: mat3x2<f32>,
+  canvas_to_portal: mat3x2<f32>,
 };
 @group(0) @binding(0) var<uniform> r_globals: Globals;
 
@@ -18,11 +18,11 @@ fn vs_main(
   var out: VertexOutput;
 
   let canvas_pos = a_pos + a_normal * a_stroke_width;
-  let viewport_pos = (r_globals.viewport_transform * vec3<f32>(canvas_pos, 1.0)).xy;
-
+  let portal_pos = (r_globals.canvas_to_portal * vec3<f32>(canvas_pos, 1.0)).xy;
   var correction: vec2<f32> = vec2<f32>(2.0, -2.0);
-  out.position = vec4<f32>(viewport_pos * correction, 0.0, 1.0);
+  let portal_pos = correction * portal_pos;
 
+  out.position = vec4<f32>(portal_pos, 0.0, 1.0);
   out.color = a_color;
 
   return out;

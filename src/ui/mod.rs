@@ -1,11 +1,16 @@
 mod backend;
+mod render_target;
+
 mod sidebar;
 
-use crate::canvas::Canvas;
+pub use self::{
+  backend::{Backend, Platform, Renderer},
+  render_target::UiRenderTarget,
+};
 
 use self::sidebar::SidebarUi;
 
-pub use self::backend::{Backend, Platform, Renderer};
+use crate::canvas::Canvas;
 
 pub struct Ui {
   backend: Backend,
@@ -21,8 +26,10 @@ impl Ui {
     Self { backend, sidebar }
   }
 
-  pub fn handle_event(&mut self, event: &crate::Event) -> bool {
-    self.backend.handle_event(event)
+  pub fn handle_event(&mut self, event: &crate::Event) {
+    // ignored at the moment, because egui is too aggressive about having exclusive
+    // access to an event.
+    let _ = self.backend.handle_event(event);
   }
 
   pub fn render(
@@ -43,8 +50,8 @@ impl Ui {
       surface_view,
       wgpu::LoadOp::Clear(wgpu::Color::BLACK),
       |ctx, renderer| {
-        self.sidebar.build_ui(ctx, canvas.tool_config_mut());
-        canvas.ui_mut().build_ui(ctx, device, renderer);
+        self.sidebar.ui(ctx, canvas);
+        canvas.portal_mut().ui(ctx, device, renderer);
       },
     );
   }

@@ -95,21 +95,6 @@ impl Backend {
     &self.ctx
   }
 
-  #[allow(dead_code)]
-  pub fn platform(&self) -> &Platform {
-    &self.platform
-  }
-
-  #[allow(dead_code)]
-  pub fn platform_mut(&mut self) -> &mut Platform {
-    &mut self.platform
-  }
-
-  #[allow(dead_code)]
-  pub fn renderer(&self) -> &Renderer {
-    &self.renderer
-  }
-
   pub fn renderer_mut(&mut self) -> &mut Renderer {
     &mut self.renderer
   }

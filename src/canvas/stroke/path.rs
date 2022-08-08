@@ -1,4 +1,4 @@
-use crate::canvas::CanvasViewport;
+use crate::canvas::CanvasPortal;
 
 use super::sample::SampledStroke;
 
@@ -14,13 +14,9 @@ impl Default for PathStroke {
 }
 
 impl PathStroke {
-  pub fn new(sampled_stroke: &SampledStroke, viewport: &CanvasViewport) -> Self {
+  pub fn new(sampled_stroke: &SampledStroke, portal: &CanvasPortal) -> Self {
     let mut points = sampled_stroke.samples.iter().map(|s| {
-      let pos = viewport
-        .transform
-        .inverse()
-        .expect("must be invertible")
-        .transform_point(s.pos);
+      let pos = portal.portal_to_canvas().transform_point(s.pos);
       let pos = lyon::geom::Point::new(pos.x, pos.y);
       let force = s.force.unwrap_or(DEFAULT_STROKE_WIDTH);
       (pos, force)

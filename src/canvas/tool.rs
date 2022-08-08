@@ -11,6 +11,7 @@ pub enum ToolEnum {
   #[default]
   Pen,
   Translate,
+  Rotate,
   Scale,
 }
 

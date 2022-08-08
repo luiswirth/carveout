@@ -1,16 +1,15 @@
 pub mod tool;
 
 mod input_handler;
+mod portal;
 mod stroke;
-mod ui;
 
-pub use ui::CanvasUi;
+pub use self::portal::CanvasPortal;
 
 use self::{input_handler::InputHandler, stroke::StrokeManager, tool::ToolConfig};
 
 pub struct Canvas {
-  ui: CanvasUi,
-  viewport: CanvasViewport,
+  portal: CanvasPortal,
   input_handler: InputHandler,
   tool_config: ToolConfig,
 
@@ -19,16 +18,14 @@ pub struct Canvas {
 
 impl Canvas {
   pub fn init(device: &wgpu::Device, ui_renderer: &mut crate::ui::Renderer) -> Self {
-    let ui = CanvasUi::init(device, ui_renderer);
-    let viewport = CanvasViewport::default();
+    let portal = CanvasPortal::init(device, ui_renderer);
     let input_handler = InputHandler::default();
     let tool_config = ToolConfig::default();
 
     let stroke_manager = StrokeManager::init(device);
 
     Self {
-      ui,
-      viewport,
+      portal,
       input_handler,
       tool_config,
 
@@ -40,8 +37,7 @@ impl Canvas {
     self.input_handler.handle_event(
       event,
       window,
-      &mut self.viewport,
-      self.ui.ui_box(),
+      &mut self.portal,
       &self.tool_config,
       &mut self.stroke_manager,
     );
@@ -53,29 +49,16 @@ impl Canvas {
     queue: &wgpu::Queue,
     encoder: &mut wgpu::CommandEncoder,
   ) {
-    self.stroke_manager.render(
-      device,
-      queue,
-      encoder,
-      self.ui.render_target(),
-      &self.viewport,
-    );
+    self
+      .stroke_manager
+      .render(device, queue, encoder, &self.portal);
   }
 
-  pub fn ui_mut(&mut self) -> &mut CanvasUi {
-    &mut self.ui
+  pub fn portal_mut(&mut self) -> &mut CanvasPortal {
+    &mut self.portal
   }
 
   pub fn tool_config_mut(&mut self) -> &mut ToolConfig {
     &mut self.tool_config
   }
-}
-
-#[derive(Default)]
-pub struct CanvasViewport {
-  pub transform: euclid::Transform2D<
-    f32,
-    crate::util::space::CanvasSpace,
-    crate::util::space::CanvasViewportSpace,
-  >,
 }

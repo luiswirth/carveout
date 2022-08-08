@@ -33,7 +33,7 @@ impl Gfx {
 
   pub fn render<F>(&mut self, render_function: F)
   where
-    F: FnOnce(&mut wgpu::CommandEncoder, &wgpu::TextureView, &WgpuCtx),
+    F: FnOnce(&WgpuCtx, &mut wgpu::CommandEncoder, &wgpu::TextureView),
   {
     let mut encoder = self
       .wgpu
@@ -69,7 +69,7 @@ impl Gfx {
         array_layer_count: None,
       });
 
-    render_function(&mut encoder, render_target, &self.wgpu);
+    render_function(&self.wgpu, &mut encoder, render_target);
 
     self.wgpu.queue.submit(std::iter::once(encoder.finish()));
     surface_texture.present();
