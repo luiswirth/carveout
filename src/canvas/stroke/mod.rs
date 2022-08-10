@@ -79,7 +79,6 @@ impl StrokeManager {
   }
 }
 
-/// bool indicates if finished
 #[derive(Default)]
 pub enum OngoingStroke {
   #[default]

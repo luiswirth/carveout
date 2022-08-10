@@ -58,16 +58,7 @@ impl Gfx {
 
     let render_target = &surface_texture
       .texture
-      .create_view(&wgpu::TextureViewDescriptor {
-        label: Some("surface_render_target_view"),
-        format: None,
-        dimension: None,
-        aspect: wgpu::TextureAspect::All,
-        base_mip_level: 0,
-        mip_level_count: None,
-        base_array_layer: 0,
-        array_layer_count: None,
-      });
+      .create_view(&wgpu::TextureViewDescriptor::default());
 
     render_function(&self.wgpu, &mut encoder, render_target);
 
@@ -94,7 +85,7 @@ pub struct WgpuCtx {
 
 impl WgpuCtx {
   pub async fn init(window: &winit::window::Window) -> Self {
-    let instance = wgpu::Instance::new(wgpu::Backends::PRIMARY);
+    let instance = wgpu::Instance::new(wgpu::Backends::all());
     let surface = unsafe { instance.create_surface(window) };
     let adapter = instance
       .request_adapter(&wgpu::RequestAdapterOptions {
@@ -121,7 +112,7 @@ impl WgpuCtx {
 
     let surface_configuration = wgpu::SurfaceConfiguration {
       usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-      format: STANDARD_TEXTURE_FORMAT,
+      format: surface.get_supported_formats(&adapter)[0],
       width: window_size.width,
       height: window_size.height,
       present_mode: wgpu::PresentMode::Fifo,

@@ -54,11 +54,16 @@ impl CanvasPortal {
     Transform2D::translation(translation.x, translation.y)
       .then_rotate(euclid::Angle::radians(rotation))
       .then_scale(scale, scale)
+      .then_scale(
+        1.0 / self.window_box.size().width,
+        1.0 / self.window_box.size().height,
+      )
   }
 
   pub fn portal_to_canvas(&self) -> Transform2D<f32, PortalSpace, CanvasSpace> {
     let translation = self.position_canvas.to_vector();
     Transform2D::scale(self.scale_canvas, self.scale_canvas)
+      .then_scale(self.window_box.size().width, self.window_box.size().height)
       .then_rotate(euclid::Angle::radians(self.rotation_canvas))
       .then_translate(translation)
   }
@@ -124,3 +129,12 @@ impl CanvasPortal {
     });
   }
 }
+
+// TODO: use this
+//#[rustfmt::skip]
+//pub const OPENGL_TO_WGPU_MATRIX: euclid::Matrix2D = cgmath::Matrix4::new(
+//  1.0, 0.0, 0.0, 0.0,
+//  0.0, 1.0, 0.0, 0.0,
+//  0.0, 0.0, 0.5, 0.0,
+//  0.0, 0.0, 0.5, 1.0,
+//);

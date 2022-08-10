@@ -3,29 +3,26 @@ use crate::util;
 use super::{CanvasPortal, TessallatedStroke};
 
 use palette::LinSrgba;
-use std::{borrow::Cow, mem};
+use std::mem;
 
 /// Renders the drawed lines
 pub struct StrokeRenderer {
   pipeline: wgpu::RenderPipeline,
   bind_group: wgpu::BindGroup,
-  globals_ubo: wgpu::Buffer,
+  portal_ubo: wgpu::Buffer,
 }
 
 impl StrokeRenderer {
   pub fn init(device: &wgpu::Device) -> Self {
-    let globals_ubo_size = mem::size_of::<Globals>() as wgpu::BufferAddress;
-    let globals_ubo = device.create_buffer(&wgpu::BufferDescriptor {
-      label: Some("stroke_renderer_globals_buffer"),
-      size: globals_ubo_size,
+    let portal_ubo_size = mem::size_of::<PortalUniform>() as wgpu::BufferAddress;
+    let portal_ubo = device.create_buffer(&wgpu::BufferDescriptor {
+      label: Some("stroke_renderer_portal_ubo"),
+      size: portal_ubo_size,
       usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
       mapped_at_creation: false,
     });
 
-    let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-      label: Some("stroke/shader.wgsl"),
-      source: wgpu::ShaderSource::Wgsl(Cow::Borrowed(include_str!("shader.wgsl"))),
-    });
+    let shader = device.create_shader_module(wgpu::include_wgsl!("shader.wgsl"));
 
     let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
       label: Some("stroke_renderer_bind_group_layout"),
@@ -35,7 +32,7 @@ impl StrokeRenderer {
         ty: wgpu::BindingType::Buffer {
           ty: wgpu::BufferBindingType::Uniform,
           has_dynamic_offset: false,
-          min_binding_size: wgpu::BufferSize::new(globals_ubo_size),
+          min_binding_size: wgpu::BufferSize::new(portal_ubo_size),
         },
         count: None,
       }],
@@ -46,7 +43,7 @@ impl StrokeRenderer {
       layout: &bind_group_layout,
       entries: &[wgpu::BindGroupEntry {
         binding: 0,
-        resource: globals_ubo.as_entire_binding(),
+        resource: portal_ubo.as_entire_binding(),
       }],
     });
 
@@ -85,12 +82,12 @@ impl StrokeRenderer {
         mask: !0,
         alpha_to_coverage_enabled: false,
       },
-
       fragment: Some(wgpu::FragmentState {
         module: &shader,
         entry_point: "fs_main",
         targets: fragment_targets,
       }),
+
       multiview: None,
     };
 
@@ -99,7 +96,7 @@ impl StrokeRenderer {
     Self {
       pipeline,
       bind_group,
-      globals_ubo,
+      portal_ubo,
     }
   }
 
@@ -112,15 +109,15 @@ impl StrokeRenderer {
     tessellated_strokes: impl IntoIterator<Item = &'a mut TessallatedStroke>,
   ) {
     queue.write_buffer(
-      &self.globals_ubo,
+      &self.portal_ubo,
       0,
-      bytemuck::cast_slice(&[Globals {
+      bytemuck::cast_slice(&[PortalUniform {
         canvas_to_portal: portal.canvas_to_portal(),
       }]),
     );
 
     let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-      label: None,
+      label: Some("stroke render pass"),
       color_attachments: &[Some(wgpu::RenderPassColorAttachment {
         view: portal.render_target(),
         ops: wgpu::Operations {
@@ -142,8 +139,8 @@ impl StrokeRenderer {
 }
 
 #[repr(C)]
-#[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
-struct Globals {
+#[derive(Debug, Default, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
+struct PortalUniform {
   canvas_to_portal: euclid::Transform2D<f32, util::space::CanvasSpace, util::space::PortalSpace>,
 }
 
@@ -157,37 +154,15 @@ pub struct Vertex {
 }
 
 impl Vertex {
+  const LAYOUT_ATTRIBUTES: [wgpu::VertexAttribute; 4] =
+    wgpu::vertex_attr_array![0 => Float32x2, 1 => Float32x2, 2 => Float32, 3 => Float32x4];
+
   fn vertex_buffer_layout<'a>() -> wgpu::VertexBufferLayout<'a> {
     // TODO: auto generate?
     wgpu::VertexBufferLayout {
-      array_stride: std::mem::size_of::<Vertex>() as u64,
+      array_stride: mem::size_of::<Vertex>() as wgpu::BufferAddress,
       step_mode: wgpu::VertexStepMode::Vertex,
-      attributes: &[
-        // position
-        wgpu::VertexAttribute {
-          format: wgpu::VertexFormat::Float32x2,
-          offset: 0,
-          shader_location: 0,
-        },
-        // normal
-        wgpu::VertexAttribute {
-          format: wgpu::VertexFormat::Float32x2,
-          offset: 8,
-          shader_location: 1,
-        },
-        // stroke_width
-        wgpu::VertexAttribute {
-          format: wgpu::VertexFormat::Float32,
-          offset: 16,
-          shader_location: 2,
-        },
-        // color
-        wgpu::VertexAttribute {
-          format: wgpu::VertexFormat::Float32x4,
-          offset: 20,
-          shader_location: 3,
-        },
-      ],
+      attributes: &Self::LAYOUT_ATTRIBUTES,
     }
   }
 }

@@ -4,7 +4,7 @@ use super::sample::SampledStroke;
 
 use lyon::path::Path;
 
-pub const DEFAULT_STROKE_WIDTH: f32 = 0.001;
+pub const DEFAULT_STROKE_WIDTH: f32 = 1.0;
 
 pub struct PathStroke(pub Path);
 impl Default for PathStroke {
