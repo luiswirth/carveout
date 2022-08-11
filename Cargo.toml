@@ -27,3 +27,4 @@ euclid = { version = "0.22.7", features = [ "bytemuck" ] }
 futures = "0.3.16"
 once_cell = "1.13.0"
 replace_with = "0.1.7"
+nalgebra = "0.31.1"

@@ -24,6 +24,8 @@
       {
         devShells.default = mkShell rec {
           buildInputs = [
+            pkgconfig
+                
             vulkan-loader
             vulkan-validation-layers
             libxkbcommon
