@@ -1,7 +1,9 @@
 mod log;
 pub mod space;
+pub mod space_unit;
 
 pub use log::init_log;
+pub use space_unit::{SpacePoint, SpaceUnit, SpaceVector};
 
 pub fn tuple2array4<T>(t: (T, T, T, T)) -> [T; 4] {
   [t.0, t.1, t.2, t.3]

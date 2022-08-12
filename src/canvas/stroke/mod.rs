@@ -10,7 +10,7 @@ pub use self::{path::PathStroke, sample::SampledStroke, tessellate::TessallatedS
 use palette::LinSrgb;
 use replace_with::replace_with_or_default;
 
-use super::{tool::PenConfig, CanvasPortal};
+use super::{tool::PenConfig, Camera};
 
 pub struct StrokeManager {
   ongoing_stroke: OngoingStroke,
@@ -39,10 +39,10 @@ impl StrokeManager {
     &mut self,
     event: &crate::Event,
     window: &winit::window::Window,
-    portal: &CanvasPortal,
+    camera: &Camera,
     pen_config: &PenConfig,
   ) {
-    sample::handle_event(event, window, portal, pen_config, &mut self.ongoing_stroke);
+    sample::handle_event(event, window, camera, pen_config, &mut self.ongoing_stroke);
   }
 
   pub fn render(
@@ -50,11 +50,11 @@ impl StrokeManager {
     device: &wgpu::Device,
     queue: &wgpu::Queue,
     encoder: &mut wgpu::CommandEncoder,
-    portal: &CanvasPortal,
+    camera: &Camera,
   ) {
     replace_with_or_default(&mut self.ongoing_stroke, |c| match c {
       OngoingStroke::Ongoing(mut c) => {
-        c.path = PathStroke::new(&c.sampled, portal);
+        c.path = PathStroke::new(&c.sampled, camera);
         c.tessellated = self.tessellator.tessellate(&c.path, &c.shared_info);
         OngoingStroke::Ongoing(c)
       }
@@ -69,7 +69,7 @@ impl StrokeManager {
       device,
       queue,
       encoder,
-      portal,
+      camera,
       self
         .finished_strokes
         .iter_mut()

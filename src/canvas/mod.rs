@@ -1,15 +1,15 @@
 pub mod tool;
 
+mod camera;
 mod input_handler;
-mod portal;
 mod stroke;
 
-pub use self::portal::CanvasPortal;
+pub use self::camera::Camera;
 
 use self::{input_handler::InputHandler, stroke::StrokeManager, tool::ToolConfig};
 
 pub struct Canvas {
-  portal: CanvasPortal,
+  camera: Camera,
   input_handler: InputHandler,
   tool_config: ToolConfig,
 
@@ -18,14 +18,14 @@ pub struct Canvas {
 
 impl Canvas {
   pub fn init(device: &wgpu::Device, ui_renderer: &mut crate::ui::Renderer) -> Self {
-    let portal = CanvasPortal::init(device, ui_renderer);
+    let camera = Camera::init(device, ui_renderer);
     let input_handler = InputHandler::default();
     let tool_config = ToolConfig::default();
 
     let stroke_manager = StrokeManager::init(device);
 
     Self {
-      portal,
+      camera,
       input_handler,
       tool_config,
 
@@ -37,7 +37,7 @@ impl Canvas {
     self.input_handler.handle_event(
       event,
       window,
-      &mut self.portal,
+      &mut self.camera,
       &self.tool_config,
       &mut self.stroke_manager,
     );
@@ -51,11 +51,11 @@ impl Canvas {
   ) {
     self
       .stroke_manager
-      .render(device, queue, encoder, &self.portal);
+      .render(device, queue, encoder, &self.camera);
   }
 
-  pub fn portal_mut(&mut self) -> &mut CanvasPortal {
-    &mut self.portal
+  pub fn camera_mut(&mut self) -> &mut Camera {
+    &mut self.camera
   }
 
   pub fn tool_config_mut(&mut self) -> &mut ToolConfig {

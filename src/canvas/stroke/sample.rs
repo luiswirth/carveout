@@ -1,7 +1,7 @@
 use super::{OngoingStroke, Stroke};
 
 use crate::{
-  canvas::{tool::PenConfig, CanvasPortal},
+  canvas::{tool::PenConfig, Camera},
   util::space::*,
 };
 
@@ -11,7 +11,7 @@ use winit::{
   window::Window,
 };
 
-const SAMPLE_DISTANCE_TOLERANCE: PortalLength = PortalLength::new(1.0 / 1000.0);
+const SAMPLE_DISTANCE_TOLERANCE: ScreenPixelUnit = ScreenPixelUnit::new(1.0);
 
 #[derive(Default)]
 pub struct SampledStroke {
@@ -19,14 +19,14 @@ pub struct SampledStroke {
 }
 
 pub struct InteractionSample {
-  pub pos: PortalPoint,
+  pub pos: ScreenPixelPoint,
   pub force: Option<f32>,
 }
 
 pub fn handle_event(
   event: &crate::Event,
   window: &Window,
-  portal: &CanvasPortal,
+  camera: &Camera,
   pen_config: &PenConfig,
   stroke: &mut OngoingStroke,
 ) {
@@ -39,7 +39,7 @@ pub fn handle_event(
       WindowEvent::Touch(touch) => {
         let pos = WindowPhysicalPoint::from_underlying(touch.location);
         let pos = WindowLogicalPoint::from_physical(pos, window.scale_factor() as f32);
-        let pos = PortalPoint::try_from_window_logical(pos, portal);
+        let pos = ScreenPixelPoint::try_from_window_logical(pos, camera);
         if let Some(pos) = pos {
           try_record_sample(
             InteractionSample {
@@ -53,7 +53,7 @@ pub fn handle_event(
       WindowEvent::CursorMoved { position, .. } => {
         let pos = WindowPhysicalPoint::from_underlying(*position);
         let pos = WindowLogicalPoint::from_physical(pos, window.scale_factor() as f32);
-        let pos = PortalPoint::try_from_window_logical(pos, portal);
+        let pos = ScreenPixelPoint::try_from_window_logical(pos, camera);
         if let Some(pos) = pos {
           try_record_sample(InteractionSample { pos, force: None }, stroke);
         }
@@ -98,8 +98,8 @@ fn try_record_sample(new_sample: InteractionSample, stroke: &mut OngoingStroke) 
     match c.sampled.samples.last() {
       None => c.sampled.samples.push(new_sample),
       Some(last_sample) => {
-        let square_dist = (new_sample.pos - last_sample.pos).square_length();
-        if square_dist > SAMPLE_DISTANCE_TOLERANCE.0.powi(2) {
+        let square_dist = (new_sample.pos - last_sample.pos).magnitude_squared();
+        if square_dist > SAMPLE_DISTANCE_TOLERANCE * SAMPLE_DISTANCE_TOLERANCE {
           c.sampled.samples.push(new_sample);
         }
       }

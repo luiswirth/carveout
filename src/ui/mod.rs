@@ -51,7 +51,7 @@ impl Ui {
       wgpu::LoadOp::Clear(wgpu::Color::BLACK),
       |ctx, renderer| {
         self.sidebar.ui(ctx, canvas);
-        canvas.portal_mut().ui(ctx, device, renderer);
+        canvas.camera_mut().ui(ctx, device, renderer);
       },
     );
   }

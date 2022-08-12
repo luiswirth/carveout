@@ -58,23 +58,23 @@ impl SidebarUi {
           }
           ToolEnum::Translate => {
             ui.label("Translate option");
-            let position = &mut canvas.portal_mut().position_canvas;
+            let position = &mut canvas.camera_mut().position;
             ui.horizontal(|ui| {
               const SPEED: f32 = 0.001;
               ui.colored_label(egui::Color32::RED, "X:");
-              ui.add(egui::DragValue::new(&mut position.x).speed(SPEED));
+              ui.add(egui::DragValue::new(&mut position.x.0).speed(SPEED));
               ui.colored_label(egui::Color32::BLUE, "Y:");
-              ui.add(egui::DragValue::new(&mut position.y).speed(SPEED));
+              ui.add(egui::DragValue::new(&mut position.y.0).speed(SPEED));
             });
           }
           ToolEnum::Rotate => {
             ui.label("Rotate option");
-            let rotation = &mut canvas.portal_mut().rotation_canvas;
+            let rotation = &mut canvas.camera_mut().angle;
             ui.add(egui::Slider::new(rotation, 0.0..=std::f32::consts::TAU));
           }
           ToolEnum::Scale => {
             ui.label("Scale options");
-            let scale = &mut canvas.portal_mut().scale_canvas;
+            let scale = &mut canvas.camera_mut().scale;
             const SPEED_MUL: f32 = 0.003;
             let speed = *scale * SPEED_MUL;
             ui.add(

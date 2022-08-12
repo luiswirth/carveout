@@ -1,6 +1,6 @@
 use super::{
   tool::{ToolConfig, ToolEnum},
-  CanvasPortal,
+  Camera,
 };
 
 use crate::{util::space::*, Event};
@@ -13,8 +13,8 @@ use winit::{
 #[derive(Default)]
 pub struct InputHandler {
   mouse_clicked: bool,
-  click_cursor_pos: Option<PortalPoint>,
-  last_cursor_pos: Option<PortalPoint>,
+  click_cursor_pos: Option<ScreenPixelPoint>,
+  last_cursor_pos: Option<ScreenPixelPoint>,
 }
 
 impl InputHandler {
@@ -22,25 +22,20 @@ impl InputHandler {
     &mut self,
     event: &crate::Event,
     window: &winit::window::Window,
-    portal: &mut CanvasPortal,
+    camera: &mut Camera,
     tool_config: &ToolConfig,
     stroke_manager: &mut super::stroke::StrokeManager,
   ) {
     match tool_config.selected {
-      ToolEnum::Pen => stroke_manager.handle_event(event, window, portal, &tool_config.pen),
-      ToolEnum::Translate => self.handle_translate_tool_event(event, window, portal),
-      ToolEnum::Rotate => self.handle_rotate_tool_event(event, window, portal),
-      ToolEnum::Scale => self.handle_scale_tool_event(event, window, portal),
+      ToolEnum::Pen => stroke_manager.handle_event(event, window, camera, &tool_config.pen),
+      ToolEnum::Translate => self.handle_translate_tool_event(event, window, camera),
+      ToolEnum::Rotate => self.handle_rotate_tool_event(event, window, camera),
+      ToolEnum::Scale => self.handle_scale_tool_event(event, window, camera),
     }
-    self.handle_scale_event(event, window, portal);
+    self.handle_scale_event(event, window, camera);
   }
 
-  fn handle_scale_event(
-    &mut self,
-    event: &crate::Event,
-    window: &Window,
-    portal: &mut CanvasPortal,
-  ) {
+  fn handle_scale_event(&mut self, event: &crate::Event, window: &Window, camera: &mut Camera) {
     if let Event::WindowEvent { event, window_id } = event {
       match event {
         WindowEvent::CursorMoved { position, .. } => {
@@ -48,7 +43,7 @@ impl InputHandler {
 
           let pos = WindowPhysicalPoint::from_underlying(*position);
           let pos = WindowLogicalPoint::from_physical(pos, window.scale_factor() as f32);
-          let pos = match PortalPoint::try_from_window_logical(pos, portal) {
+          let pos = match ScreenPixelPoint::try_from_window_logical(pos, camera) {
             Some(p) => p,
             None => return,
           };
@@ -56,11 +51,14 @@ impl InputHandler {
         }
         WindowEvent::MouseWheel { delta, .. } => {
           let scale_factor = match delta {
-            MouseScrollDelta::LineDelta(_x, y) => 1.0 - y / 100.0,
+            MouseScrollDelta::LineDelta(_x, y) => 1.0 + y / 100.0,
             MouseScrollDelta::PixelDelta(_) => unimplemented!(),
           };
           match self.last_cursor_pos {
-            Some(cursor_pos) => portal.scale_with_center(scale_factor, cursor_pos),
+            Some(cursor_pos) => {
+              let center = CanvasPoint::from_screen(cursor_pos, camera);
+              camera.scale_with_center(scale_factor, center);
+            }
             None => {}
           }
         }
@@ -73,7 +71,7 @@ impl InputHandler {
     &mut self,
     event: &Event,
     window: &Window,
-    portal: &mut CanvasPortal,
+    camera: &mut Camera,
   ) {
     if let Event::WindowEvent { event, window_id } = event {
       match event {
@@ -84,7 +82,7 @@ impl InputHandler {
           }
           let pos = WindowPhysicalPoint::from_underlying(*position);
           let pos = WindowLogicalPoint::from_physical(pos, window.scale_factor() as f32);
-          let pos = match PortalPoint::try_from_window_logical(pos, portal) {
+          let pos = match ScreenPixelPoint::try_from_window_logical(pos, camera) {
             Some(p) => p,
             None => return,
           };
@@ -93,8 +91,8 @@ impl InputHandler {
             None => self.last_cursor_pos = Some(pos),
             Some(last_pos) => {
               let diff = pos - last_pos;
-              let diff = CanvasVector::from_portal(diff, portal);
-              portal.position_canvas -= diff;
+              let diff = CanvasVector::from_screen(diff, camera);
+              camera.position -= diff;
               self.last_cursor_pos = Some(pos);
             }
           }
@@ -118,12 +116,7 @@ impl InputHandler {
     }
   }
 
-  pub fn handle_rotate_tool_event(
-    &mut self,
-    event: &Event,
-    window: &Window,
-    portal: &mut CanvasPortal,
-  ) {
+  pub fn handle_rotate_tool_event(&mut self, event: &Event, window: &Window, camera: &mut Camera) {
     if let Event::WindowEvent { event, window_id } = event {
       match event {
         WindowEvent::CursorMoved { position, .. } => {
@@ -133,7 +126,7 @@ impl InputHandler {
           }
           let pos = WindowPhysicalPoint::from_underlying(*position);
           let pos = WindowLogicalPoint::from_physical(pos, window.scale_factor() as f32);
-          let pos = match PortalPoint::try_from_window_logical(pos, portal) {
+          let pos = match ScreenPixelPoint::try_from_window_logical(pos, camera) {
             Some(p) => p,
             None => return,
           };
@@ -146,9 +139,11 @@ impl InputHandler {
             None => self.last_cursor_pos = Some(pos),
             Some(last_pos) => {
               let diff = pos - last_pos;
-              let rotation = diff.x * 10.0;
+              let diff = ScreenNormalizedVector::from_pixel(diff, camera);
+              let rotation = diff.x.0 * std::f32::consts::TAU;
 
-              portal.rotate_with_center(rotation, self.click_cursor_pos.unwrap());
+              let center = CanvasPoint::from_screen(self.click_cursor_pos.unwrap(), camera);
+              camera.rotate_with_center(rotation, center);
 
               self.last_cursor_pos = Some(pos);
             }
@@ -174,12 +169,7 @@ impl InputHandler {
     }
   }
 
-  pub fn handle_scale_tool_event(
-    &mut self,
-    event: &Event,
-    window: &Window,
-    portal: &mut CanvasPortal,
-  ) {
+  pub fn handle_scale_tool_event(&mut self, event: &Event, window: &Window, camera: &mut Camera) {
     if let Event::WindowEvent { event, window_id } = event {
       match event {
         WindowEvent::CursorMoved { position, .. } => {
@@ -189,7 +179,7 @@ impl InputHandler {
           }
           let pos = WindowPhysicalPoint::from_underlying(*position);
           let pos = WindowLogicalPoint::from_physical(pos, window.scale_factor() as f32);
-          let pos = match PortalPoint::try_from_window_logical(pos, portal) {
+          let pos = match ScreenPixelPoint::try_from_window_logical(pos, camera) {
             Some(p) => p,
             None => return,
           };
@@ -202,9 +192,11 @@ impl InputHandler {
             None => self.last_cursor_pos = Some(pos),
             Some(last_pos) => {
               let diff = pos - last_pos;
-              let scale_factor = 1.0 + diff.y;
+              let diff = ScreenNormalizedVector::from_pixel(diff, camera);
+              let scale_factor = 1.0 + diff.y.0;
 
-              portal.scale_with_center(scale_factor, self.click_cursor_pos.unwrap());
+              let center = CanvasPoint::from_screen(self.click_cursor_pos.unwrap(), camera);
+              camera.scale_with_center(scale_factor, center);
 
               self.last_cursor_pos = Some(pos);
             }

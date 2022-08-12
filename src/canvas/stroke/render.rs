@@ -1,7 +1,6 @@
-use crate::util;
+use super::{Camera, TessallatedStroke};
 
-use super::{CanvasPortal, TessallatedStroke};
-
+use encase::UniformBuffer;
 use palette::LinSrgba;
 use std::mem;
 
@@ -9,15 +8,15 @@ use std::mem;
 pub struct StrokeRenderer {
   pipeline: wgpu::RenderPipeline,
   bind_group: wgpu::BindGroup,
-  portal_ubo: wgpu::Buffer,
+  camera_ubo: wgpu::Buffer,
 }
 
 impl StrokeRenderer {
   pub fn init(device: &wgpu::Device) -> Self {
-    let portal_ubo_size = mem::size_of::<PortalUniform>() as wgpu::BufferAddress;
-    let portal_ubo = device.create_buffer(&wgpu::BufferDescriptor {
-      label: Some("stroke_renderer_portal_ubo"),
-      size: portal_ubo_size,
+    let camera_ubo_size = 48;
+    let camera_ubo = device.create_buffer(&wgpu::BufferDescriptor {
+      label: Some("stroke_renderer_camera_ubo"),
+      size: camera_ubo_size,
       usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
       mapped_at_creation: false,
     });
@@ -32,7 +31,7 @@ impl StrokeRenderer {
         ty: wgpu::BindingType::Buffer {
           ty: wgpu::BufferBindingType::Uniform,
           has_dynamic_offset: false,
-          min_binding_size: wgpu::BufferSize::new(portal_ubo_size),
+          min_binding_size: wgpu::BufferSize::new(camera_ubo_size),
         },
         count: None,
       }],
@@ -43,7 +42,7 @@ impl StrokeRenderer {
       layout: &bind_group_layout,
       entries: &[wgpu::BindGroupEntry {
         binding: 0,
-        resource: portal_ubo.as_entire_binding(),
+        resource: camera_ubo.as_entire_binding(),
       }],
     });
 
@@ -96,7 +95,7 @@ impl StrokeRenderer {
     Self {
       pipeline,
       bind_group,
-      portal_ubo,
+      camera_ubo,
     }
   }
 
@@ -105,21 +104,24 @@ impl StrokeRenderer {
     device: &wgpu::Device,
     queue: &wgpu::Queue,
     encoder: &mut wgpu::CommandEncoder,
-    portal: &CanvasPortal,
+    camera: &Camera,
     tessellated_strokes: impl IntoIterator<Item = &'a mut TessallatedStroke>,
   ) {
-    queue.write_buffer(
-      &self.portal_ubo,
-      0,
-      bytemuck::cast_slice(&[PortalUniform {
-        canvas_to_portal: portal.canvas_to_portal(),
-      }]),
-    );
+    let view: na::Transform2<f32> = na::convert(camera.view_transform());
+    let projection: na::Transform2<f32> = na::convert(camera.projection());
+    let view_projection = projection * view;
+    let view_projection = view_projection.to_homogeneous();
+    let camera_uniform = CameraUniform { view_projection };
+
+    let mut buffer = UniformBuffer::new(Vec::new());
+    buffer.write(&camera_uniform).unwrap();
+    let byte_buffer = buffer.into_inner();
+    queue.write_buffer(&self.camera_ubo, 0, &byte_buffer);
 
     let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
       label: Some("stroke render pass"),
       color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-        view: portal.render_target(),
+        view: camera.render_target(),
         ops: wgpu::Operations {
           load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
           store: true,
@@ -138,10 +140,9 @@ impl StrokeRenderer {
   }
 }
 
-#[repr(C)]
-#[derive(Debug, Default, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
-struct PortalUniform {
-  canvas_to_portal: euclid::Transform2D<f32, util::space::CanvasSpace, util::space::PortalSpace>,
+#[derive(encase::ShaderType)]
+struct CameraUniform {
+  view_projection: na::Matrix3<f32>,
 }
 
 #[repr(C)]
@@ -158,7 +159,6 @@ impl Vertex {
     wgpu::vertex_attr_array![0 => Float32x2, 1 => Float32x2, 2 => Float32, 3 => Float32x4];
 
   fn vertex_buffer_layout<'a>() -> wgpu::VertexBufferLayout<'a> {
-    // TODO: auto generate?
     wgpu::VertexBufferLayout {
       array_stride: mem::size_of::<Vertex>() as wgpu::BufferAddress,
       step_mode: wgpu::VertexStepMode::Vertex,

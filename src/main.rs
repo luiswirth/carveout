@@ -1,5 +1,7 @@
 #![allow(clippy::single_match)]
 
+extern crate nalgebra as na;
+
 mod canvas;
 mod gfx;
 mod ui;

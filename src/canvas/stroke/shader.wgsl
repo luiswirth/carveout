@@ -3,12 +3,12 @@ struct VertexOutput {
   @builtin(position) clip_position: vec4<f32>,
 };
 
-struct PortalUniform {
-  canvas_to_portal: mat3x2<f32>,
+struct CameraUniform {
+  view_projection: mat3x3<f32>,
 };
 
 @group(0) @binding(0)
-var<uniform> u_portal: PortalUniform;
+var<uniform> u_camera: CameraUniform;
 
 @vertex
 fn vs_main(
@@ -20,12 +20,10 @@ fn vs_main(
   var out: VertexOutput;
 
   let canvas_pos = a_pos + a_normal * a_stroke_width;
-  let portal_pos = (u_portal.canvas_to_portal * vec3<f32>(canvas_pos, 1.0)).xy;
-  // TODO: replace this with OPENGL_TO_WGPU_MATRIX
-  var correction: vec2<f32> = vec2<f32>(2.0, -2.0);
-  let portal_pos = correction * portal_pos;
+  let clip_pos = (u_camera.view_projection * vec3<f32>(canvas_pos, 1.0)).xy;
+  let clip_pos = vec2<f32>(clip_pos.x, -clip_pos.y);
 
-  out.clip_position = vec4<f32>(portal_pos, 0.0, 1.0);
+  out.clip_position = vec4<f32>(clip_pos, 0.0, 1.0);
   out.color = a_color;
   return out;
 }
