@@ -1,105 +1,60 @@
-mod path;
 mod render;
-mod sample;
 mod tessellate;
 
-pub use self::{render::StrokeRenderer, tessellate::StrokeTessellator};
+use self::{render::StrokeRenderer, tessellate::StrokeTessellator};
+use super::{space::*, CameraWithScreen};
 
-pub use self::{path::PathStroke, sample::SampledStroke, tessellate::TessallatedStroke};
-
+use lyon::path::Path;
 use palette::LinSrgb;
-use replace_with::replace_with_or_default;
-
-use super::{tool::PenConfig, Camera};
 
 pub struct StrokeManager {
-  ongoing_stroke: OngoingStroke,
-  finished_strokes: Vec<Stroke>,
   tessellator: StrokeTessellator,
   renderer: StrokeRenderer,
 }
 
 impl StrokeManager {
   pub fn init(device: &wgpu::Device) -> Self {
-    let ongoing_stroke = OngoingStroke::default();
-    let finished_strokes = Vec::new();
     let tessellator = StrokeTessellator::init();
     let renderer = StrokeRenderer::init(device);
 
     Self {
-      ongoing_stroke,
-      finished_strokes,
-
       tessellator,
       renderer,
     }
   }
 
-  pub fn handle_event(
-    &mut self,
-    event: &crate::Event,
-    window: &winit::window::Window,
-    camera: &Camera,
-    pen_config: &PenConfig,
-  ) {
-    sample::handle_event(event, window, camera, pen_config, &mut self.ongoing_stroke);
-  }
-
-  pub fn render(
+  pub fn render<'a>(
     &mut self,
     device: &wgpu::Device,
     queue: &wgpu::Queue,
     encoder: &mut wgpu::CommandEncoder,
-    camera: &Camera,
+    camera_screen: &CameraWithScreen,
+    finished_strokes: impl Iterator<Item = &'a mut Stroke>,
+    mut ongoing_stroke: Option<&'a mut Stroke>,
   ) {
-    replace_with_or_default(&mut self.ongoing_stroke, |c| match c {
-      OngoingStroke::Ongoing(mut c) => {
-        c.path = PathStroke::new(&c.sampled, camera);
-        c.tessellated = self.tessellator.tessellate(&c.path, &c.shared_info);
-        OngoingStroke::Ongoing(c)
-      }
-      OngoingStroke::Finished(c) => {
-        self.finished_strokes.push(c);
-        OngoingStroke::None
-      }
-      OngoingStroke::None => OngoingStroke::None,
-    });
-
-    self.renderer.render(
-      device,
-      queue,
-      encoder,
-      camera,
-      self
-        .finished_strokes
-        .iter_mut()
-        .chain(self.ongoing_stroke.as_ongoing_mut())
-        .map(|c| &mut c.tessellated),
-    );
-  }
-}
-
-#[derive(Default)]
-pub enum OngoingStroke {
-  #[default]
-  None,
-  Ongoing(Stroke),
-  Finished(Stroke),
-}
-impl OngoingStroke {
-  pub fn as_ongoing_mut(&mut self) -> Option<&mut Stroke> {
-    match self {
-      Self::Ongoing(c) => Some(c),
-      _ => None,
+    if let Some(ref mut s) = ongoing_stroke {
+      s.path = Some(PathStroke::new(&s.sampled, camera_screen));
+      s.tessellated = Some(
+        self
+          .tessellator
+          .tessellate(s.path.as_ref().unwrap(), &s.shared_info),
+      );
     }
+
+    let strokes = finished_strokes
+      .chain(ongoing_stroke)
+      .filter_map(|s| s.tessellated.as_mut());
+    self
+      .renderer
+      .render(device, queue, encoder, camera_screen, strokes);
   }
 }
 
 #[derive(Default)]
 pub struct Stroke {
   pub sampled: SampledStroke,
-  pub path: PathStroke,
-  pub tessellated: TessallatedStroke,
+  pub path: Option<PathStroke>,
+  pub tessellated: Option<TessallatedStroke>,
 
   pub shared_info: SharedStrokeInfo,
 }
@@ -112,6 +67,18 @@ impl Stroke {
   }
 }
 
+#[derive(Default)]
+pub struct SampledStroke {
+  pub samples: Vec<InteractionSample>,
+}
+
+pub struct InteractionSample {
+  pub pos: ScreenPixelPoint,
+}
+
+#[derive(Default)]
+pub struct TessallatedStroke(pub crate::gfx::tessellate::TessellationStore<render::Vertex>);
+
 pub struct SharedStrokeInfo {
   pub width: f32,
   pub color: LinSrgb,
@@ -123,5 +90,35 @@ impl Default for SharedStrokeInfo {
       color: palette::named::WHITE.into_format().into_linear(),
       width: 1.0,
     }
+  }
+}
+
+pub const DEFAULT_STROKE_WIDTH: f32 = 1.0;
+
+pub struct PathStroke(pub Path);
+impl Default for PathStroke {
+  fn default() -> Self {
+    Self(Path::new(1))
+  }
+}
+
+impl PathStroke {
+  pub fn new(sampled_stroke: &SampledStroke, camera_screen: &CameraWithScreen) -> Self {
+    let mut points = sampled_stroke.samples.iter().map(|s| {
+      let pos = CanvasPoint::from_screen(s.pos, camera_screen);
+      lyon::geom::Point::new(pos.x.0, pos.y.0)
+    });
+
+    let mut builder = Path::builder_with_attributes(1);
+    let first_point = match points.next() {
+      Some(s) => s,
+      None => return Self::default(),
+    };
+    builder.begin(first_point, &[DEFAULT_STROKE_WIDTH]);
+    for point in points {
+      builder.line_to(point, &[DEFAULT_STROKE_WIDTH]);
+    }
+    builder.end(false);
+    Self(builder.build())
   }
 }

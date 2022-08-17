@@ -1,4 +1,4 @@
-use crate::ui::Renderer as UiRenderer;
+use super::backend::Renderer as UiRenderer;
 
 /// A target for rendering in the UI.
 /// Uses all available space.

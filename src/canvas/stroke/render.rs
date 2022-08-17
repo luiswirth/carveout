@@ -1,4 +1,5 @@
-use super::{Camera, TessallatedStroke};
+use super::TessallatedStroke;
+use crate::canvas::gfx::CameraWithScreen;
 
 use encase::UniformBuffer;
 use palette::LinSrgba;
@@ -104,11 +105,11 @@ impl StrokeRenderer {
     device: &wgpu::Device,
     queue: &wgpu::Queue,
     encoder: &mut wgpu::CommandEncoder,
-    camera: &Camera,
+    camera_screen: &CameraWithScreen,
     tessellated_strokes: impl IntoIterator<Item = &'a mut TessallatedStroke>,
   ) {
-    let view: na::Transform2<f32> = na::convert(camera.view_transform());
-    let projection: na::Transform2<f32> = na::convert(camera.projection());
+    let view: na::Transform2<f32> = na::convert(camera_screen.view_transform());
+    let projection: na::Transform2<f32> = na::convert(camera_screen.projection());
     let view_projection = projection * view;
     let view_projection = view_projection.to_homogeneous();
     let camera_uniform = CameraUniform { view_projection };
@@ -118,10 +119,11 @@ impl StrokeRenderer {
     let byte_buffer = buffer.into_inner();
     queue.write_buffer(&self.camera_ubo, 0, &byte_buffer);
 
+    let view = camera_screen.render_target();
     let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
       label: Some("stroke render pass"),
       color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-        view: camera.render_target(),
+        view: &view,
         ops: wgpu::Operations {
           load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
           store: true,

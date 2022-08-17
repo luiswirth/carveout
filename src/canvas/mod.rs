@@ -1,31 +1,49 @@
+pub mod content;
 pub mod tool;
+pub mod undo;
 
-mod camera;
-mod input_handler;
+mod gfx;
+mod input;
+mod space;
 mod stroke;
 
-pub use self::camera::Camera;
+use self::{
+  content::{CanvasContent, PersistentContent},
+  gfx::CameraWithScreen,
+  input::InputHandler,
+  stroke::StrokeManager,
+  tool::ToolConfig,
+  undo::UndoTree,
+};
 
-use self::{input_handler::InputHandler, stroke::StrokeManager, tool::ToolConfig};
+use crate::ui::CanvasScreen;
 
-pub struct Canvas {
-  camera: Camera,
-  input_handler: InputHandler,
+use std::{cell::RefCell, rc::Rc};
+
+pub struct CanvasManager {
+  content: CanvasContent,
+  undo_tree: UndoTree,
+  camera_screen: CameraWithScreen,
   tool_config: ToolConfig,
+  input_handler: InputHandler,
 
   stroke_manager: StrokeManager,
 }
 
-impl Canvas {
-  pub fn init(device: &wgpu::Device, ui_renderer: &mut crate::ui::Renderer) -> Self {
-    let camera = Camera::init(device, ui_renderer);
+impl CanvasManager {
+  pub fn init(device: &wgpu::Device, screen: Rc<RefCell<CanvasScreen>>) -> Self {
+    let content = CanvasContent::init();
+    let undo_tree = UndoTree::new();
+    let camera_screen = CameraWithScreen::init(screen);
     let input_handler = InputHandler::default();
     let tool_config = ToolConfig::default();
 
     let stroke_manager = StrokeManager::init(device);
 
     Self {
-      camera,
+      content,
+      undo_tree,
+      camera_screen,
       input_handler,
       tool_config,
 
@@ -37,9 +55,10 @@ impl Canvas {
     self.input_handler.handle_event(
       event,
       window,
-      &mut self.camera,
+      &mut self.camera_screen,
       &self.tool_config,
-      &mut self.stroke_manager,
+      &mut self.undo_tree,
+      &mut self.content,
     );
   }
 
@@ -49,16 +68,27 @@ impl Canvas {
     queue: &wgpu::Queue,
     encoder: &mut wgpu::CommandEncoder,
   ) {
-    self
-      .stroke_manager
-      .render(device, queue, encoder, &self.camera);
+    let (ongoing, persistent) = self.content.ongoing_persistent_mut();
+
+    self.stroke_manager.render(
+      device,
+      queue,
+      encoder,
+      &self.camera_screen,
+      persistent.strokes_mut().iter_mut(),
+      ongoing.stroke.as_mut(),
+    );
   }
 
-  pub fn camera_mut(&mut self) -> &mut Camera {
-    &mut self.camera
+  pub fn camera_screen_mut(&mut self) -> &mut CameraWithScreen {
+    &mut self.camera_screen
   }
 
   pub fn tool_config_mut(&mut self) -> &mut ToolConfig {
     &mut self.tool_config
+  }
+
+  pub fn undo_tree_content_mut(&mut self) -> (&mut UndoTree, &mut PersistentContent) {
+    (&mut self.undo_tree, self.content.persistent())
   }
 }

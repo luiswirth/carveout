@@ -24,9 +24,9 @@ impl<S> From<f32> for SpaceUnit<S> {
     Self(v, PhantomData)
   }
 }
-impl<S> Into<f32> for SpaceUnit<S> {
-  fn into(self) -> f32 {
-    self.0
+impl<S> From<SpaceUnit<S>> for f32 {
+  fn from(v: SpaceUnit<S>) -> f32 {
+    v.0
   }
 }
 impl<S> std::fmt::Debug for SpaceUnit<S> {

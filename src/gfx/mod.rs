@@ -13,24 +13,6 @@ impl Gfx {
     Self { wgpu }
   }
 
-  pub fn handle_event(&mut self, event: &crate::Event<'_>) {
-    use winit::event::WindowEvent;
-
-    if let crate::Event::WindowEvent {
-      window_id: _,
-      event,
-    } = event
-    {
-      match event {
-        WindowEvent::Resized(new_size) => self.resize_surface([new_size.width, new_size.height]),
-        WindowEvent::ScaleFactorChanged { new_inner_size, .. } => {
-          self.resize_surface([new_inner_size.width, new_inner_size.height]);
-        }
-        _ => {}
-      }
-    }
-  }
-
   pub fn render<F>(&mut self, render_function: F)
   where
     F: FnOnce(&WgpuCtx, &mut wgpu::CommandEncoder, &wgpu::TextureView),
@@ -66,11 +48,10 @@ impl Gfx {
     surface_texture.present();
   }
 
-  fn resize_surface(&mut self, new_size: [u32; 2]) {
+  pub fn resize(&mut self, new_size: [u32; 2]) {
     self.wgpu.resize_surface(new_size);
   }
 
-  /// Get a reference to the graphics's wgpu.
   pub fn wgpu(&self) -> &WgpuCtx {
     &self.wgpu
   }

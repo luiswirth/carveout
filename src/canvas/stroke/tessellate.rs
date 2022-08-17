@@ -1,21 +1,13 @@
 use super::{
-  path::PathStroke,
   render::{Vertex, VertexConstructor},
-  SharedStrokeInfo,
+  PathStroke, SharedStrokeInfo, TessallatedStroke,
 };
-
-use crate::{
-  gfx::tessellate::{TessellationStore, TessellationStoreBuilder},
-  util,
-};
+use crate::{gfx::tessellate::TessellationStoreBuilder, util};
 
 use lyon::{
   path::LineCap,
   tessellation::{StrokeOptions, StrokeTessellator as LyonStrokeTessellator},
 };
-
-#[derive(Default)]
-pub struct TessallatedStroke(pub TessellationStore<Vertex>);
 
 pub struct StrokeTessellator {
   tessellator: LyonStrokeTessellator,

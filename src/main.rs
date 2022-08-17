@@ -7,7 +7,7 @@ mod gfx;
 mod ui;
 mod util;
 
-use crate::{canvas::Canvas, gfx::Gfx, ui::Ui};
+use crate::{canvas::CanvasManager, gfx::Gfx, ui::Ui};
 
 use winit::{event_loop::ControlFlow, window::Window};
 
@@ -21,7 +21,7 @@ pub struct Application {
   gfx: Gfx,
   ui: Ui,
 
-  canvas: Canvas,
+  canvas: CanvasManager,
 }
 
 impl Application {
@@ -34,9 +34,11 @@ impl Application {
       .build(&event_loop)
       .expect("Fatal error: Failed to create winit window.");
     let gfx = Gfx::init(&window).await;
-    let mut ui = Ui::init(&event_loop, gfx.wgpu().device());
-
-    let canvas = Canvas::init(gfx.wgpu().device(), ui.renderer_mut());
+    let ui = Ui::init(&event_loop, gfx.wgpu().device());
+    let canvas = CanvasManager::init(
+      gfx.wgpu().device(),
+      std::rc::Rc::clone(ui.canvas().screen()),
+    );
 
     Self {
       event_loop: Some(event_loop),
@@ -61,25 +63,30 @@ impl Application {
   fn handle_event(&mut self, event: Event<'_>, control_flow: &mut ControlFlow) {
     use winit::event::WindowEvent;
 
-    self.gfx.handle_event(&event);
-    self.ui.handle_event(&event);
+    if self.ui.handle_event(&event) && !self.ui.canvas().has_focus() {
+      return;
+    }
     self.canvas.handle_event(&event, &self.window);
 
     match event {
       Event::NewEvents(_) => {}
       Event::MainEventsCleared => {
         self.update();
-
-        // TODO: do not always request redraw
         self.window.request_redraw();
       }
       Event::RedrawRequested(_) => {
         self.render();
       }
-      Event::WindowEvent {
-        event: WindowEvent::CloseRequested,
-        window_id,
-      } if window_id == self.window.id() => *control_flow = ControlFlow::Exit,
+      Event::WindowEvent { event, .. } => match event {
+        WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit,
+        WindowEvent::Resized(new_size) => self.gfx.resize([new_size.width, new_size.height]),
+        WindowEvent::ScaleFactorChanged { new_inner_size, .. } => {
+          self
+            .gfx
+            .resize([new_inner_size.width, new_inner_size.height]);
+        }
+        _ => {}
+      },
 
       Event::RedrawEventsCleared => {}
       Event::Suspended => {}
@@ -95,6 +102,7 @@ impl Application {
   fn render(&mut self) {
     self.gfx.render(|wgpu, encoder, render_target| {
       self.canvas.render(wgpu.device(), wgpu.queue(), encoder);
+
       self.ui.render(
         &self.window,
         wgpu.device(),

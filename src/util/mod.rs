@@ -1,6 +1,5 @@
 mod log;
-pub mod space;
-pub mod space_unit;
+mod space_unit;
 
 pub use log::init_log;
 pub use space_unit::{SpacePoint, SpaceUnit, SpaceVector};
