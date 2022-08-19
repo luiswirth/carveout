@@ -39,6 +39,28 @@ impl StrokeManager {
           .tessellator
           .tessellate(s.path.as_ref().unwrap(), &s.shared_info),
       );
+      let vertices = s
+        .tessellated
+        .as_ref()
+        .unwrap()
+        .0
+        .vertices
+        .iter()
+        .map(|v| v.position.into())
+        .collect();
+      let indices: Vec<_> = s
+        .tessellated
+        .as_ref()
+        .unwrap()
+        .0
+        .indices
+        .clone()
+        .chunks(3)
+        .map(|c| [c[0], c[1], c[2]])
+        .collect();
+      if !indices.is_empty() {
+        s.parry = Some(parry2d::shape::TriMesh::new(vertices, indices));
+      }
     }
 
     let strokes = finished_strokes
@@ -50,11 +72,26 @@ impl StrokeManager {
   }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct StrokeId(pub uuid::Uuid);
+impl Default for StrokeId {
+  fn default() -> Self {
+    Self(uuid::Uuid::new_v4())
+  }
+}
+impl StrokeId {
+  pub fn nil() -> StrokeId {
+    Self(uuid::Uuid::nil())
+  }
+}
+
 #[derive(Default)]
 pub struct Stroke {
+  pub id: StrokeId,
   pub sampled: SampledStroke,
   pub path: Option<PathStroke>,
   pub tessellated: Option<TessallatedStroke>,
+  pub parry: Option<parry2d::shape::TriMesh>,
 
   pub shared_info: SharedStrokeInfo,
 }

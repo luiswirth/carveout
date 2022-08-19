@@ -61,10 +61,12 @@ impl SidebarUi {
 
         ui.horizontal_wrapped(|ui| {
           selectable_tool(ui, selected, ToolEnum::Pen, "✏");
+          selectable_tool(ui, selected, ToolEnum::Eraser, "📙");
           selectable_tool(ui, selected, ToolEnum::Translate, "✋");
           selectable_tool(ui, selected, ToolEnum::Rotate, "🔄");
           selectable_tool(ui, selected, ToolEnum::Scale, "🔍");
         });
+
         ui.separator();
         match selected {
           ToolEnum::Pen => {
@@ -115,6 +117,7 @@ impl SidebarUi {
                 .speed(speed),
             );
           }
+          ToolEnum::Eraser => {}
         }
       });
     });

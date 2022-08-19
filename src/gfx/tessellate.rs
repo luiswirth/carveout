@@ -12,11 +12,11 @@ use lyon::tessellation::{
 type Index = u32;
 
 pub struct TessellationStore<Vertex> {
-  vertices: Vec<Vertex>,
-  indices: Vec<Index>,
+  pub vertices: Vec<Vertex>,
+  pub indices: Vec<Index>,
 
-  vertex_buffer: Option<DynamicBuffer>,
-  index_buffer: Option<DynamicBuffer>,
+  pub vertex_buffer: Option<DynamicBuffer>,
+  pub index_buffer: Option<DynamicBuffer>,
 }
 
 impl<V> Default for TessellationStore<V> {

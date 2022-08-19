@@ -49,7 +49,7 @@ impl PenInputHandler {
 
               // TODO: clean up
               if let Some(s) = content.ongoing().stroke.take() {
-                undo_tree.do_it(Box::new(AddStrokeCommand::new(s)), content.persistent());
+                undo_tree.do_it(Box::new(AddStrokeCommand::new(s)), content.persistent_mut());
               }
             }
           }

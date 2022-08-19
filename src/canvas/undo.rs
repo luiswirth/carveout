@@ -23,6 +23,10 @@ impl UndoTree {
     Self { root, head }
   }
 
+  // TODO: introduce command queue
+  // delay executing commands until "update"
+  // => don't require content to be passed in here.
+  // TODO: never store identical siblings (e.g. undoing stroke delete and deleting the same stroke again)
   pub fn do_it(&mut self, mut command: Box<dyn Command>, content: &mut PersistentContent) {
     command.execute(content);
     let new_strong = TreeNode::new_link(command, self.head.clone());

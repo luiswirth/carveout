@@ -89,6 +89,6 @@ impl CanvasManager {
   }
 
   pub fn undo_tree_content_mut(&mut self) -> (&mut UndoTree, &mut PersistentContent) {
-    (&mut self.undo_tree, self.content.persistent())
+    (&mut self.undo_tree, self.content.persistent_mut())
   }
 }

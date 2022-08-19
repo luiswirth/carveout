@@ -10,6 +10,7 @@ pub struct ToolConfig {
 pub enum ToolEnum {
   #[default]
   Pen,
+  Eraser,
   Translate,
   Rotate,
   Scale,

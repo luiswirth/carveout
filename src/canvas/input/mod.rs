@@ -3,9 +3,10 @@ mod pen;
 use self::pen::PenInputHandler;
 
 use super::{
-  content::CanvasContent,
+  content::{CanvasContent, RemoveStrokeCommand},
   gfx::CameraWithScreen,
   space::*,
+  stroke::StrokeId,
   tool::{ToolConfig, ToolEnum},
   undo::UndoTree,
 };
@@ -47,11 +48,85 @@ impl InputHandler {
           undo_tree,
           canvas_content,
         ),
+        ToolEnum::Eraser => {
+          self.handle_eraser_tool_event(event, window, camera_screen, undo_tree, canvas_content)
+        }
         ToolEnum::Translate => self.handle_translate_tool_event(event, window, camera_screen),
         ToolEnum::Rotate => self.handle_rotate_tool_event(event, window, camera_screen),
         ToolEnum::Scale => self.handle_scale_tool_event(event, window, camera_screen),
       }
       self.handle_scale_event(event, window, camera_screen);
+    }
+  }
+
+  pub fn handle_eraser_tool_event(
+    &mut self,
+    event: &WindowEvent,
+    window: &Window,
+    camera_screen: &mut CameraWithScreen,
+    undo_tree: &mut UndoTree,
+    canvas_content: &mut CanvasContent,
+  ) {
+    match event {
+      WindowEvent::CursorMoved { position, .. } => {
+        if !self.mouse_clicked {
+          return;
+        }
+        let pos = position.to_logical(window.scale_factor());
+        let pos = match ScreenPixelPoint::try_from_window_logical(pos, camera_screen) {
+          Some(p) => p,
+          None => return,
+        };
+
+        match self.last_cursor_pos {
+          None => {}
+          Some(last_pos) => {
+            let pos = CanvasPoint::from_screen(pos, camera_screen);
+            let last_pos = CanvasPoint::from_screen(last_pos, camera_screen);
+            let cursor = parry2d::shape::Segment::new(last_pos.cast(), pos.cast());
+            let remove_list: Vec<StrokeId> = canvas_content
+              .persistent()
+              .strokes()
+              .iter()
+              .filter(|s| s.parry.is_some())
+              .filter(|s| {
+                parry2d::query::intersection_test(
+                  &na::Isometry::default(),
+                  s.parry.as_ref().unwrap(),
+                  &na::Isometry::default(),
+                  &cursor,
+                )
+                .expect("parry2d error: unsupported?")
+              })
+              .map(|s| s.id)
+              .collect();
+
+            for id in remove_list {
+              undo_tree.do_it(
+                Box::new(RemoveStrokeCommand::new(id)),
+                canvas_content.persistent_mut(),
+              )
+            }
+          }
+        }
+        self.last_cursor_pos = Some(pos);
+      }
+
+      WindowEvent::MouseInput { state, button, .. } => {
+        if *button == MouseButton::Left {
+          match state {
+            ElementState::Pressed => {
+              self.mouse_clicked = true;
+              self.last_cursor_pos = None;
+            }
+            ElementState::Released => {
+              self.mouse_clicked = false;
+              self.last_cursor_pos = None;
+            }
+          }
+        }
+      }
+      _ => {}
     }
   }
 
