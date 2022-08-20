@@ -45,7 +45,7 @@ impl PersistentContent {
   }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct AddStrokeCommand(Option<Stroke>);
 impl AddStrokeCommand {
   pub fn new(stroke: Stroke) -> Self {
@@ -64,7 +64,7 @@ impl Command for AddStrokeCommand {
   }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub enum RemoveStrokeCommand {
   Before(StrokeId),
   After(Box<Stroke>),

@@ -88,7 +88,6 @@ impl CanvasManager {
     &mut self.content
   }
 
-  #[allow(dead_code)]
   pub fn protocol_manager(&self) -> &ProtocolManager {
     &self.protocol_manager
   }

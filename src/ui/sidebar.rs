@@ -31,11 +31,13 @@ impl SidebarUi {
           if ui.button("📂").clicked() {
             if let Some(savefile) = crate::file::load() {
               *canvas.content_mut().persistent_mut() = savefile.content;
+              *canvas.protocol_manager_mut().protocol_mut() = savefile.protocol;
             }
           }
           if ui.button("🗄").clicked() {
             let content = canvas.content().persistent().clone();
-            let savefile = crate::file::Savefile { content };
+            let protocol = canvas.protocol_manager().protocol().clone();
+            let savefile = crate::file::Savefile { content, protocol };
             crate::file::save(&savefile);
           }
         });

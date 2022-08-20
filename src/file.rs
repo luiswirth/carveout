@@ -1,4 +1,4 @@
-use crate::canvas::content::PersistentContent;
+use crate::canvas::{content::PersistentContent, protocol::ContentProtocol};
 
 use serde::{Deserialize, Serialize};
 use std::{
@@ -9,6 +9,7 @@ use std::{
 #[derive(Serialize, Deserialize)]
 pub struct Savefile {
   pub content: PersistentContent,
+  pub protocol: ContentProtocol,
 }
 
 pub fn load() -> Option<Savefile> {
@@ -43,7 +44,8 @@ pub fn save(savefile: &Savefile) {
       _ => file_path.set_extension("co"),
     };
 
-    let data_string = ron::to_string(savefile).unwrap();
+    let pretty_config = ron::ser::PrettyConfig::default();
+    let data_string = ron::ser::to_string_pretty(savefile, pretty_config).unwrap();
 
     let mut file = fs::File::create(file_path).unwrap();
     file.write_all(data_string.as_bytes()).unwrap();
