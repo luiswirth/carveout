@@ -5,6 +5,7 @@ use std::marker::PhantomData;
 pub type SpacePoint<S> = na::Point2<SpaceUnit<S>>;
 pub type SpaceVector<S> = na::Vector2<SpaceUnit<S>>;
 
+#[derive(serde::Serialize, serde::Deserialize)]
 pub struct SpaceUnit<S>(pub f32, PhantomData<S>);
 impl<S> SpaceUnit<S> {
   pub const fn new(v: f32) -> Self {

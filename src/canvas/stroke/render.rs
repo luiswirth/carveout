@@ -1,5 +1,4 @@
-use super::TessallatedStroke;
-use crate::canvas::gfx::CameraWithScreen;
+use crate::{canvas::gfx::CameraWithScreen, gfx::tessellate::TessellationStore};
 
 use encase::UniformBuffer;
 use palette::LinSrgba;
@@ -106,7 +105,7 @@ impl StrokeRenderer {
     queue: &wgpu::Queue,
     encoder: &mut wgpu::CommandEncoder,
     camera_screen: &CameraWithScreen,
-    tessellated_strokes: impl IntoIterator<Item = &'a mut TessallatedStroke>,
+    tessellated_strokes: impl IntoIterator<Item = &'a mut TessellationStore<Vertex>>,
   ) {
     let view: na::Transform2<f32> = na::convert(camera_screen.view_transform());
     let projection: na::Transform2<f32> = na::convert(camera_screen.projection());
@@ -137,7 +136,7 @@ impl StrokeRenderer {
     pass.set_bind_group(0, &self.bind_group, &[]);
 
     for stroke in tessellated_strokes {
-      stroke.0.render(device, queue, &mut pass);
+      stroke.render(device, queue, &mut pass);
     }
   }
 }
@@ -171,6 +170,6 @@ impl Vertex {
 
 #[derive(Copy, Clone)]
 pub struct VertexConstructor {
-  pub stroke_width: f32,
+  pub width_multiplier: f32,
   pub color: LinSrgba,
 }

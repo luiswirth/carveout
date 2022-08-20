@@ -1,4 +1,11 @@
-use crate::canvas::{tool::ToolEnum, undo::UndoTreeVisualizer, CanvasManager};
+use std::fs;
+
+use crate::canvas::{
+  content::PersistentContent,
+  tool::ToolEnum,
+  undo::{ContentCommander, UndoTreeVisualizer},
+  CanvasManager,
+};
 
 use palette::{FromColor, Hsv, IntoColor};
 
@@ -26,21 +33,59 @@ impl SidebarUi {
       ui.add_space(10.0);
 
       ui.group(|ui| {
+        ui.label("File");
+        ui.horizontal_wrapped(|ui| {
+          if ui.button("📂").clicked() {
+            let home_dir = dirs::home_dir().unwrap();
+            let file_path = rfd::FileDialog::new()
+              .add_filter("carveout", &["co"])
+              .set_directory(home_dir)
+              .pick_file();
+
+            if let Some(file_path) = file_path {
+              let mut file = fs::File::open(file_path).unwrap();
+              *canvas.content_mut().persistent_mut() = PersistentContent::load_from_file(&mut file);
+              *canvas.content_commander_mut() = ContentCommander::new();
+            };
+          }
+          if ui.button("🗄").clicked() {
+            // TODO: serialize content commander
+            let home_dir = dirs::home_dir().unwrap();
+            let file_path = rfd::FileDialog::new()
+              .add_filter("carveout", &["co"])
+              .set_directory(home_dir)
+              .save_file();
+            if let Some(mut file_path) = file_path {
+              match file_path.extension() {
+                Some(ext) if ext == "co" => true,
+                _ => file_path.set_extension("co"),
+              };
+              let mut file = fs::File::create(file_path).unwrap();
+              canvas
+                .content_mut()
+                .persistent_mut()
+                .save_to_file(&mut file);
+            }
+          }
+        });
+      });
+
+      ui.group(|ui| {
         ui.label("Undo");
-        let (undo_tree, content) = canvas.undo_tree_content_mut();
+        let undo_tree = canvas.content_commander_mut();
         ui.horizontal_wrapped(|ui| {
           let undoable = undo_tree.undoable();
           let button = egui::Button::new("⮪");
           let response = ui.add_enabled(undoable, button);
           if undoable && response.clicked() {
-            undo_tree.undo(content);
+            undo_tree.undo();
           }
 
           let redoable = undo_tree.redoable();
           let button = egui::Button::new("⮫");
           let response = ui.add_enabled(redoable, button);
           if redoable && response.clicked() {
-            undo_tree.redo(content);
+            undo_tree.redo();
           }
         });
 
@@ -49,9 +94,7 @@ impl SidebarUi {
           egui::Window::new("Undo Tree Visualizer")
             .collapsible(false)
             .resizable(false)
-            .show(ui.ctx(), |ui| {
-              self.undo_tree_visualizer.ui(ui, content, undo_tree)
-            });
+            .show(ui.ctx(), |ui| self.undo_tree_visualizer.ui(ui, undo_tree));
         }
       });
 

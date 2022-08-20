@@ -8,12 +8,8 @@ mod space;
 mod stroke;
 
 use self::{
-  content::{CanvasContent, PersistentContent},
-  gfx::CameraWithScreen,
-  input::InputHandler,
-  stroke::StrokeManager,
-  tool::ToolConfig,
-  undo::UndoTree,
+  content::CanvasContent, gfx::CameraWithScreen, input::InputHandler, stroke::StrokeManager,
+  tool::ToolConfig, undo::ContentCommander,
 };
 
 use crate::ui::CanvasScreen;
@@ -22,7 +18,7 @@ use std::{cell::RefCell, rc::Rc};
 
 pub struct CanvasManager {
   content: CanvasContent,
-  undo_tree: UndoTree,
+  content_commander: ContentCommander,
   camera_screen: CameraWithScreen,
   tool_config: ToolConfig,
   input_handler: InputHandler,
@@ -33,7 +29,7 @@ pub struct CanvasManager {
 impl CanvasManager {
   pub fn init(device: &wgpu::Device, screen: Rc<RefCell<CanvasScreen>>) -> Self {
     let content = CanvasContent::init();
-    let undo_tree = UndoTree::new();
+    let content_commander = ContentCommander::new();
     let camera_screen = CameraWithScreen::init(screen);
     let input_handler = InputHandler::default();
     let tool_config = ToolConfig::default();
@@ -42,7 +38,7 @@ impl CanvasManager {
 
     Self {
       content,
-      undo_tree,
+      content_commander,
       camera_screen,
       input_handler,
       tool_config,
@@ -57,9 +53,20 @@ impl CanvasManager {
       window,
       &mut self.camera_screen,
       &self.tool_config,
-      &mut self.undo_tree,
+      &mut self.content_commander,
       &mut self.content,
+      &self.stroke_manager,
     );
+  }
+
+  pub fn update(&mut self) {
+    self.content_commander.update(self.content.persistent_mut());
+
+    // TODO: don't set all strokes every frame, only update when changed
+    self.stroke_manager.clear_strokes();
+    let (ongoing, persistent) = self.content.ongoing_persistent_mut();
+    let strokes = persistent.strokes().iter().chain(&ongoing.stroke);
+    self.stroke_manager.update_strokes(strokes);
   }
 
   pub fn render(
@@ -68,16 +75,9 @@ impl CanvasManager {
     queue: &wgpu::Queue,
     encoder: &mut wgpu::CommandEncoder,
   ) {
-    let (ongoing, persistent) = self.content.ongoing_persistent_mut();
-
-    self.stroke_manager.render(
-      device,
-      queue,
-      encoder,
-      &self.camera_screen,
-      persistent.strokes_mut().iter_mut(),
-      ongoing.stroke.as_mut(),
-    );
+    self
+      .stroke_manager
+      .render(device, queue, encoder, &self.camera_screen);
   }
 
   pub fn camera_screen_mut(&mut self) -> &mut CameraWithScreen {
@@ -88,7 +88,11 @@ impl CanvasManager {
     &mut self.tool_config
   }
 
-  pub fn undo_tree_content_mut(&mut self) -> (&mut UndoTree, &mut PersistentContent) {
-    (&mut self.undo_tree, self.content.persistent_mut())
+  pub fn content_commander_mut(&mut self) -> &mut ContentCommander {
+    &mut self.content_commander
+  }
+
+  pub fn content_mut(&mut self) -> &mut CanvasContent {
+    &mut self.content
   }
 }

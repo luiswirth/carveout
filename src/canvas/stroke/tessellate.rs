@@ -1,17 +1,23 @@
 use super::{
   render::{Vertex, VertexConstructor},
-  PathStroke, SharedStrokeInfo, TessallatedStroke,
+  Stroke,
 };
-use crate::{gfx::tessellate::TessellationStoreBuilder, util};
+use crate::{
+  gfx::tessellate::{TessellationStore, TessellationStoreBuilder},
+  util,
+};
 
 use lyon::{
-  path::LineCap,
+  path::{LineCap, Path},
   tessellation::{StrokeOptions, StrokeTessellator as LyonStrokeTessellator},
 };
 
 pub struct StrokeTessellator {
   tessellator: LyonStrokeTessellator,
 }
+
+const DEFAULT_STROKE_WIDTH: f32 = 1.0;
+const STROKE_WIDTH_ATTRIBUTE: lyon::path::AttributeIndex = 0;
 
 impl StrokeTessellator {
   pub fn init() -> Self {
@@ -20,36 +26,43 @@ impl StrokeTessellator {
   }
 
   #[allow(clippy::suspicious_map)]
-  pub fn tessellate(
-    &mut self,
-    path_stroke: &PathStroke,
-    stroke_info: &SharedStrokeInfo,
-  ) -> TessallatedStroke {
-    const STROKE_WIDTH_ATTRIBUTE: lyon::path::AttributeIndex = 0;
+  pub fn tessellate(&mut self, stroke: &Stroke) -> TessellationStore<Vertex> {
+    // build path
+    let mut points = stroke
+      .points
+      .iter()
+      .map(|p| lyon::geom::Point::new(p.x.0, p.y.0));
+    let mut builder = Path::builder_with_attributes(1);
+    let first_point = points.next().unwrap();
+    builder.begin(first_point, &[DEFAULT_STROKE_WIDTH]);
+    for point in points {
+      builder.line_to(point, &[DEFAULT_STROKE_WIDTH]);
+    }
+    builder.end(false);
+    let path = builder.build();
 
     let options = StrokeOptions::default()
       .with_tolerance(0.001)
       .with_line_cap(LineCap::Round)
       .with_variable_line_width(STROKE_WIDTH_ATTRIBUTE);
 
-    let mut tessellated_stroke = TessallatedStroke::default();
-
+    let mut store = TessellationStore::default();
     self
       .tessellator
       .tessellate_path(
-        &path_stroke.0,
+        &path,
         &options,
         &mut TessellationStoreBuilder::new(
-          &mut tessellated_stroke.0,
+          &mut store,
           VertexConstructor {
-            stroke_width: stroke_info.width,
-            color: stroke_info.color.into(),
+            width_multiplier: stroke.width_multiplier,
+            color: stroke.color.into(),
           },
         ),
       )
       .expect("tessellation failed");
 
-    tessellated_stroke
+    store
   }
 }
 
@@ -58,7 +71,7 @@ impl lyon::lyon_tessellation::StrokeVertexConstructor<Vertex> for VertexConstruc
     Vertex {
       position: vertex.position_on_path().to_array(),
       normal: vertex.normal().to_array(),
-      stroke_width: vertex.interpolated_attributes()[0] * self.stroke_width,
+      stroke_width: vertex.interpolated_attributes()[0] * self.width_multiplier,
       color: util::tuple2array4(self.color.into_components()),
     }
   }

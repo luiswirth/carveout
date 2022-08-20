@@ -1,9 +1,9 @@
 use crate::canvas::{
   content::{AddStrokeCommand, CanvasContent},
   space::*,
-  stroke::{InteractionSample, Stroke},
+  stroke::Stroke,
   tool::PenConfig,
-  undo::UndoTree,
+  undo::ContentCommander,
   CameraWithScreen,
 };
 
@@ -17,6 +17,8 @@ const SAMPLE_DISTANCE_TOLERANCE: ScreenPixelUnit = ScreenPixelUnit::new(1.0);
 #[derive(Default)]
 pub struct PenInputHandler {
   clicked: bool,
+
+  points: Vec<ScreenPixelPoint>,
 }
 
 impl PenInputHandler {
@@ -26,31 +28,34 @@ impl PenInputHandler {
     window: &Window,
     camera_screen: &CameraWithScreen,
     pen_config: &PenConfig,
-    undo_tree: &mut UndoTree,
+    content_commander: &mut ContentCommander,
     content: &mut CanvasContent,
   ) {
-    let stroke = &mut content.ongoing().stroke;
     match event {
       WindowEvent::CursorMoved { position, .. } => {
         let pos = position.to_logical(window.scale_factor());
         let pos = ScreenPixelPoint::try_from_window_logical(pos, camera_screen);
         if self.clicked {
           if let Some(pos) = pos {
-            self.record_sample(InteractionSample { pos }, stroke, pen_config);
+            self.record_sampled_point(
+              pos,
+              &mut content.ongoing().stroke,
+              camera_screen,
+              pen_config,
+            );
           }
         }
       }
       WindowEvent::MouseInput { state, button, .. } => {
         if *button == event::MouseButton::Left {
           match state {
-            event::ElementState::Pressed => self.clicked = true,
+            event::ElementState::Pressed => {
+              self.clicked = true;
+              self.start_stroke();
+            }
             event::ElementState::Released => {
               self.clicked = false;
-
-              // TODO: clean up
-              if let Some(s) = content.ongoing().stroke.take() {
-                undo_tree.do_it(Box::new(AddStrokeCommand::new(s)), content.persistent_mut());
-              }
+              self.finish_stroke(content_commander, content);
             }
           }
         }
@@ -59,21 +64,51 @@ impl PenInputHandler {
     }
   }
 
-  fn record_sample(
-    &self,
-    new_sample: InteractionSample,
-    stroke: &mut Option<Stroke>,
+  fn start_stroke(&mut self) {
+    self.points = Vec::new();
+  }
+
+  fn record_sampled_point(
+    &mut self,
+    new_point: ScreenPixelPoint,
+    ongoing_stroke: &mut Option<Stroke>,
+    camera_screen: &CameraWithScreen,
     pen_config: &PenConfig,
   ) {
-    let stroke = stroke.get_or_insert(Stroke::new(pen_config.color, pen_config.width));
-    match stroke.sampled.samples.last() {
-      None => stroke.sampled.samples.push(new_sample),
-      Some(last_sample) => {
-        let square_dist = (new_sample.pos - last_sample.pos).magnitude_squared();
+    match self.points.last() {
+      None => {
+        self.points.push(new_point);
+      }
+      Some(last_point) => {
+        let square_dist = (new_point - last_point).magnitude_squared();
         if square_dist > SAMPLE_DISTANCE_TOLERANCE * SAMPLE_DISTANCE_TOLERANCE {
-          stroke.sampled.samples.push(new_sample);
+          self.points.push(new_point);
+          match ongoing_stroke {
+            None => {
+              let points = self
+                .points
+                .iter()
+                .map(|p| CanvasPointExt::from_screen(*p, camera_screen))
+                .collect();
+              *ongoing_stroke = Some(Stroke::new(points, pen_config.color, pen_config.width))
+            }
+            Some(ongoing_stroke) => {
+              self.points.push(new_point);
+              ongoing_stroke.add_point(CanvasPointExt::from_screen(new_point, camera_screen));
+            }
+          }
         }
       }
+    }
+  }
+
+  fn finish_stroke(
+    &mut self,
+    content_commander: &mut ContentCommander,
+    content: &mut CanvasContent,
+  ) {
+    if let Some(finished_stroke) = content.ongoing().stroke.take() {
+      content_commander.do_it(Box::new(AddStrokeCommand::new(finished_stroke)));
     }
   }
 }

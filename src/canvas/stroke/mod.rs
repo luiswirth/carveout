@@ -3,76 +3,79 @@ mod tessellate;
 
 use self::{render::StrokeRenderer, tessellate::StrokeTessellator};
 use super::{space::*, CameraWithScreen};
+use crate::gfx::tessellate::TessellationStore;
 
-use lyon::path::Path;
 use palette::LinSrgb;
+use std::collections::HashMap;
 
 pub struct StrokeManager {
+  data: HashMap<StrokeId, StrokeData>,
   tessellator: StrokeTessellator,
   renderer: StrokeRenderer,
 }
 
 impl StrokeManager {
   pub fn init(device: &wgpu::Device) -> Self {
+    let data = HashMap::new();
     let tessellator = StrokeTessellator::init();
     let renderer = StrokeRenderer::init(device);
 
     Self {
+      data,
       tessellator,
       renderer,
     }
   }
 
-  pub fn render<'a>(
+  pub fn data(&self) -> &HashMap<StrokeId, StrokeData> {
+    &self.data
+  }
+
+  pub fn clear_strokes(&mut self) {
+    self.data.clear();
+  }
+
+  pub fn update_strokes<'a>(&mut self, strokes: impl IntoIterator<Item = &'a Stroke>) {
+    for stroke in strokes {
+      let tessellation = self.tessellator.tessellate(stroke);
+
+      let vertices = tessellation
+        .vertices
+        .iter()
+        .map(|v| v.position.into())
+        .collect();
+      let indices = tessellation
+        .indices
+        .chunks(3)
+        .map(|c| [c[0], c[1], c[2]])
+        .collect();
+
+      let trimesh = parry2d::shape::TriMesh::new(vertices, indices);
+
+      let data = StrokeData {
+        tessellation,
+        trimesh,
+      };
+      self.data.insert(stroke.id, data);
+    }
+  }
+
+  pub fn render(
     &mut self,
     device: &wgpu::Device,
     queue: &wgpu::Queue,
     encoder: &mut wgpu::CommandEncoder,
     camera_screen: &CameraWithScreen,
-    finished_strokes: impl Iterator<Item = &'a mut Stroke>,
-    mut ongoing_stroke: Option<&'a mut Stroke>,
   ) {
-    if let Some(ref mut s) = ongoing_stroke {
-      s.path = Some(PathStroke::new(&s.sampled, camera_screen));
-      s.tessellated = Some(
-        self
-          .tessellator
-          .tessellate(s.path.as_ref().unwrap(), &s.shared_info),
-      );
-      let vertices = s
-        .tessellated
-        .as_ref()
-        .unwrap()
-        .0
-        .vertices
-        .iter()
-        .map(|v| v.position.into())
-        .collect();
-      let indices: Vec<_> = s
-        .tessellated
-        .as_ref()
-        .unwrap()
-        .0
-        .indices
-        .clone()
-        .chunks(3)
-        .map(|c| [c[0], c[1], c[2]])
-        .collect();
-      if !indices.is_empty() {
-        s.parry = Some(parry2d::shape::TriMesh::new(vertices, indices));
-      }
-    }
+    let stores = self.data.values_mut().map(|d| &mut d.tessellation);
 
-    let strokes = finished_strokes
-      .chain(ongoing_stroke)
-      .filter_map(|s| s.tessellated.as_mut());
     self
       .renderer
-      .render(device, queue, encoder, camera_screen, strokes);
+      .render(device, queue, encoder, camera_screen, stores);
   }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub struct StrokeId(pub uuid::Uuid);
 impl Default for StrokeId {
   fn default() -> Self {
@@ -85,77 +88,39 @@ impl StrokeId {
   }
 }
 
-#[derive(Default)]
-pub struct Stroke {
-  pub id: StrokeId,
-  pub sampled: SampledStroke,
-  pub path: Option<PathStroke>,
-  pub tessellated: Option<TessallatedStroke>,
-  pub parry: Option<parry2d::shape::TriMesh>,
+pub struct StrokeData {
+  pub tessellation: TessellationStore<render::Vertex>,
+  pub trimesh: parry2d::shape::TriMesh,
+}
 
-  pub shared_info: SharedStrokeInfo,
+/// Stroke must have at least two points
+#[derive(serde::Serialize, serde::Deserialize)]
+pub struct Stroke {
+  id: StrokeId,
+
+  // TODO: add pos field and store points in curve (model) space
+  //pub points: Vec<CanvasPoint>,
+  points: Vec<CanvasPoint>,
+  width_multiplier: f32,
+  color: LinSrgb,
 }
 impl Stroke {
-  pub fn new(color: LinSrgb, width: f32) -> Self {
+  pub fn new(points: Vec<CanvasPoint>, color: LinSrgb, width_multiplier: f32) -> Self {
+    assert!(points.len() >= 2);
+    let id = StrokeId::default();
     Self {
-      shared_info: SharedStrokeInfo { width, color },
-      ..Default::default()
+      id,
+      points,
+      color,
+      width_multiplier,
     }
   }
-}
 
-#[derive(Default)]
-pub struct SampledStroke {
-  pub samples: Vec<InteractionSample>,
-}
-
-pub struct InteractionSample {
-  pub pos: ScreenPixelPoint,
-}
-
-#[derive(Default)]
-pub struct TessallatedStroke(pub crate::gfx::tessellate::TessellationStore<render::Vertex>);
-
-pub struct SharedStrokeInfo {
-  pub width: f32,
-  pub color: LinSrgb,
-}
-
-impl Default for SharedStrokeInfo {
-  fn default() -> Self {
-    Self {
-      color: palette::named::WHITE.into_format().into_linear(),
-      width: 1.0,
-    }
+  pub fn id(&self) -> StrokeId {
+    self.id
   }
-}
 
-pub const DEFAULT_STROKE_WIDTH: f32 = 1.0;
-
-pub struct PathStroke(pub Path);
-impl Default for PathStroke {
-  fn default() -> Self {
-    Self(Path::new(1))
-  }
-}
-
-impl PathStroke {
-  pub fn new(sampled_stroke: &SampledStroke, camera_screen: &CameraWithScreen) -> Self {
-    let mut points = sampled_stroke.samples.iter().map(|s| {
-      let pos = CanvasPoint::from_screen(s.pos, camera_screen);
-      lyon::geom::Point::new(pos.x.0, pos.y.0)
-    });
-
-    let mut builder = Path::builder_with_attributes(1);
-    let first_point = match points.next() {
-      Some(s) => s,
-      None => return Self::default(),
-    };
-    builder.begin(first_point, &[DEFAULT_STROKE_WIDTH]);
-    for point in points {
-      builder.line_to(point, &[DEFAULT_STROKE_WIDTH]);
-    }
-    builder.end(false);
-    Self(builder.build())
+  pub fn add_point(&mut self, point: CanvasPoint) {
+    self.points.push(point);
   }
 }

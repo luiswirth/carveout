@@ -1,5 +1,6 @@
 use std::{
   cell::RefCell,
+  collections::VecDeque,
   rc::{Rc, Weak},
 };
 
@@ -11,48 +12,40 @@ pub trait Command {
   fn rollback(&mut self, content: &mut PersistentContent);
 }
 
-pub struct UndoTree {
+enum Todo {
+  Do(Box<dyn Command>),
+  Undo,
+  Redo,
+}
+
+/// Uses an undo tree
+pub struct ContentCommander {
+  queue: VecDeque<Todo>,
   root: StrongLink,
   head: WeakLink,
 }
 
-impl UndoTree {
+impl ContentCommander {
   pub fn new() -> Self {
+    let queue = VecDeque::new();
     let root = TreeNode::new_root_link();
     let head = Rc::downgrade(&root);
-    Self { root, head }
+    Self { queue, root, head }
   }
 
-  // TODO: introduce command queue
-  // delay executing commands until "update"
-  // => don't require content to be passed in here.
   // TODO: never store identical siblings (e.g. undoing stroke delete and deleting the same stroke again)
-  pub fn do_it(&mut self, mut command: Box<dyn Command>, content: &mut PersistentContent) {
-    command.execute(content);
-    let new_strong = TreeNode::new_link(command, self.head.clone());
-    let new_weak = Rc::downgrade(&new_strong);
-    let head = self.head.upgrade().unwrap();
-    let mut head = head.borrow_mut();
-    head.children.push(new_strong);
-    self.head = new_weak;
+  pub fn do_it(&mut self, cmd: Box<dyn Command>) {
+    self.queue.push_back(Todo::Do(cmd))
   }
 
   /// does nothing if not undoable
-  pub fn undo(&mut self, content: &mut PersistentContent) {
-    let head = self.head.upgrade().unwrap();
-    let mut head = head.borrow_mut();
-    head.command.rollback(content);
-    self.head = head.parent.clone();
+  pub fn undo(&mut self) {
+    self.queue.push_back(Todo::Undo)
   }
 
   /// does nothing if not redoable
-  pub fn redo(&mut self, content: &mut PersistentContent) {
-    let head = self.head.upgrade().unwrap();
-    let head = head.borrow_mut();
-    if let Some(new_head) = head.children.last() {
-      new_head.borrow_mut().command.execute(content);
-      self.head = Rc::downgrade(new_head);
-    }
+  pub fn redo(&mut self) {
+    self.queue.push_back(Todo::Redo)
   }
 
   pub fn switch_branch(&mut self, i: usize) {
@@ -62,15 +55,47 @@ impl UndoTree {
     head.children.swap(i, i_last);
   }
 
+  // TODO: doesn't respect queued todos
   pub fn undoable(&self) -> bool {
     let head = self.head.upgrade().unwrap();
     !Rc::ptr_eq(&head, &self.root)
   }
 
+  // TODO: doesn't respect queued todos
   pub fn redoable(&self) -> bool {
     let head = self.head.upgrade().unwrap();
     let head = head.borrow();
     !head.children.is_empty()
+  }
+
+  pub fn update(&mut self, content: &mut PersistentContent) {
+    for todo in self.queue.drain(..) {
+      match todo {
+        Todo::Do(mut cmd) => {
+          cmd.execute(content);
+          let new_strong = TreeNode::new_link(cmd, self.head.clone());
+          let new_weak = Rc::downgrade(&new_strong);
+          let head = self.head.upgrade().unwrap();
+          let mut head = head.borrow_mut();
+          head.children.push(new_strong);
+          self.head = new_weak;
+        }
+        Todo::Undo => {
+          let head = self.head.upgrade().unwrap();
+          let mut head = head.borrow_mut();
+          head.command.rollback(content);
+          self.head = head.parent.clone();
+        }
+        Todo::Redo => {
+          let head = self.head.upgrade().unwrap();
+          let head = head.borrow_mut();
+          if let Some(new_head) = head.children.last() {
+            new_head.borrow_mut().command.execute(content);
+            self.head = Rc::downgrade(new_head);
+          }
+        }
+      }
+    }
   }
 }
 
@@ -131,12 +156,7 @@ impl Command for SentinelCommand {
 #[derive(Default)]
 pub struct UndoTreeVisualizer {}
 impl UndoTreeVisualizer {
-  pub fn ui(
-    &mut self,
-    ui: &mut egui::Ui,
-    content: &mut PersistentContent,
-    undo_tree: &mut UndoTree,
-  ) {
+  pub fn ui(&mut self, ui: &mut egui::Ui, content_commander: &mut ContentCommander) {
     let size = egui::Vec2::splat(300.0);
     let (response, painter) = ui.allocate_painter(size, egui::Sense::click());
     let rect = response.rect;
@@ -147,7 +167,7 @@ impl UndoTreeVisualizer {
     let color = egui::Color32::from_gray(128);
     let stroke = egui::Stroke::new(4.0, color);
 
-    let head = undo_tree.head.upgrade().unwrap();
+    let head = content_commander.head.upgrade().unwrap();
     let text = head
       .borrow()
       .creation_time
@@ -162,7 +182,7 @@ impl UndoTreeVisualizer {
       egui::Color32::WHITE,
     );
 
-    let has_parent = !Rc::ptr_eq(&head, &undo_tree.root);
+    let has_parent = !Rc::ptr_eq(&head, &content_commander.root);
     if has_parent {
       painter.line_segment(
         [c - egui::vec2(0.0, rr), c - egui::vec2(0.0, 6.0 * rr)],
@@ -177,7 +197,7 @@ impl UndoTreeVisualizer {
         if circle.visual_bounding_rect().contains(cursor) {
           circle.fill = egui::Color32::BLUE;
           if response.clicked() {
-            undo_tree.undo(content);
+            content_commander.undo();
           }
         }
       }
@@ -203,8 +223,8 @@ impl UndoTreeVisualizer {
         if circle.visual_bounding_rect().contains(cursor) {
           circle.fill = egui::Color32::BLUE;
           if response.clicked() {
-            undo_tree.switch_branch(i);
-            undo_tree.redo(content);
+            content_commander.switch_branch(i);
+            content_commander.redo();
           }
         }
       }

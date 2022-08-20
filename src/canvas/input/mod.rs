@@ -6,9 +6,9 @@ use super::{
   content::{CanvasContent, RemoveStrokeCommand},
   gfx::CameraWithScreen,
   space::*,
-  stroke::StrokeId,
+  stroke::{StrokeId, StrokeManager},
   tool::{ToolConfig, ToolEnum},
-  undo::UndoTree,
+  undo::ContentCommander,
 };
 
 use crate::Event;
@@ -33,8 +33,9 @@ impl InputHandler {
     window: &winit::window::Window,
     camera_screen: &mut CameraWithScreen,
     tool_config: &ToolConfig,
-    undo_tree: &mut UndoTree,
+    content_commander: &mut ContentCommander,
     canvas_content: &mut CanvasContent,
+    stroke_manager: &StrokeManager,
   ) {
     if let Event::WindowEvent { event, window_id } = event {
       assert_eq!(*window_id, window.id());
@@ -45,12 +46,17 @@ impl InputHandler {
           window,
           camera_screen,
           &tool_config.pen,
-          undo_tree,
+          content_commander,
           canvas_content,
         ),
-        ToolEnum::Eraser => {
-          self.handle_eraser_tool_event(event, window, camera_screen, undo_tree, canvas_content)
-        }
+        ToolEnum::Eraser => self.handle_eraser_tool_event(
+          event,
+          window,
+          camera_screen,
+          content_commander,
+          canvas_content,
+          stroke_manager,
+        ),
         ToolEnum::Translate => self.handle_translate_tool_event(event, window, camera_screen),
         ToolEnum::Rotate => self.handle_rotate_tool_event(event, window, camera_screen),
         ToolEnum::Scale => self.handle_scale_tool_event(event, window, camera_screen),
@@ -64,8 +70,9 @@ impl InputHandler {
     event: &WindowEvent,
     window: &Window,
     camera_screen: &mut CameraWithScreen,
-    undo_tree: &mut UndoTree,
+    undo_tree: &mut ContentCommander,
     canvas_content: &mut CanvasContent,
+    stroke_manager: &StrokeManager,
   ) {
     match event {
       WindowEvent::CursorMoved { position, .. } => {
@@ -88,24 +95,25 @@ impl InputHandler {
               .persistent()
               .strokes()
               .iter()
-              .filter(|s| s.parry.is_some())
               .filter(|s| {
+                let mesh = &stroke_manager
+                  .data()
+                  .get(&s.id())
+                  .expect("No stroke data.")
+                  .trimesh;
                 parry2d::query::intersection_test(
                   &na::Isometry::default(),
-                  s.parry.as_ref().unwrap(),
+                  mesh,
                   &na::Isometry::default(),
                   &cursor,
                 )
                 .expect("parry2d error: unsupported?")
               })
-              .map(|s| s.id)
+              .map(|s| s.id())
               .collect();
 
             for id in remove_list {
-              undo_tree.do_it(
-                Box::new(RemoveStrokeCommand::new(id)),
-                canvas_content.persistent_mut(),
-              )
+              undo_tree.do_it(Box::new(RemoveStrokeCommand::new(id)))
             }
           }
         }

@@ -1,3 +1,10 @@
+use std::{
+  fs,
+  io::{Read, Write},
+};
+
+use serde::{Deserialize, Serialize};
+
 use super::{
   stroke::{Stroke, StrokeId},
   undo::Command,
@@ -46,6 +53,7 @@ impl OngoingContent {
 }
 
 /// Should only be mutated through `Command`s.
+#[derive(Serialize, Deserialize)]
 pub struct PersistentContent {
   strokes: Vec<Stroke>,
 }
@@ -59,9 +67,15 @@ impl PersistentContent {
     &self.strokes
   }
 
-  // TODO: ILLEGAL! no mutable access should be granted
-  pub fn strokes_mut(&mut self) -> &mut [Stroke] {
-    &mut self.strokes
+  pub fn load_from_file(file: &mut fs::File) -> Self {
+    let mut data_string = String::new();
+    file.read_to_string(&mut data_string).unwrap();
+    ron::from_str(&data_string).unwrap()
+  }
+
+  pub fn save_to_file(&self, file: &mut fs::File) {
+    let data_string = ron::to_string(self).unwrap();
+    file.write_all(data_string.as_bytes()).unwrap();
   }
 }
 
@@ -98,7 +112,7 @@ impl Command for RemoveStrokeCommand {
       Self::Before(id) => {
         let stroke = content
           .strokes
-          .remove(content.strokes.iter().position(|s| s.id == *id).unwrap());
+          .remove(content.strokes.iter().position(|s| s.id() == *id).unwrap());
         *self = Self::After(Box::new(stroke));
       }
       Self::After(_) => unreachable!(),
@@ -109,7 +123,7 @@ impl Command for RemoveStrokeCommand {
     let id;
     match std::mem::replace(self, Self::Before(StrokeId::nil())) {
       Self::After(stroke) => {
-        id = stroke.id;
+        id = stroke.id();
         content.strokes.push(*stroke);
       }
       Self::Before(_) => unreachable!(),

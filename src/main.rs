@@ -97,7 +97,9 @@ impl Application {
     }
   }
 
-  fn update(&mut self) {}
+  fn update(&mut self) {
+    self.canvas.update();
+  }
 
   fn render(&mut self) {
     self.gfx.render(|wgpu, encoder, render_target| {
