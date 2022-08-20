@@ -5,10 +5,10 @@ use self::pen::PenInputHandler;
 use super::{
   content::{CanvasContent, RemoveStrokeCommand},
   gfx::CameraWithScreen,
+  protocol::ProtocolManager,
   space::*,
   stroke::{StrokeId, StrokeManager},
   tool::{ToolConfig, ToolEnum},
-  undo::ContentCommander,
 };
 
 use crate::Event;
@@ -33,7 +33,7 @@ impl InputHandler {
     window: &winit::window::Window,
     camera_screen: &mut CameraWithScreen,
     tool_config: &ToolConfig,
-    content_commander: &mut ContentCommander,
+    content_commander: &mut ProtocolManager,
     canvas_content: &mut CanvasContent,
     stroke_manager: &StrokeManager,
   ) {
@@ -70,7 +70,7 @@ impl InputHandler {
     event: &WindowEvent,
     window: &Window,
     camera_screen: &mut CameraWithScreen,
-    undo_tree: &mut ContentCommander,
+    undo_tree: &mut ProtocolManager,
     canvas_content: &mut CanvasContent,
     stroke_manager: &StrokeManager,
   ) {
@@ -100,7 +100,7 @@ impl InputHandler {
                   .data()
                   .get(&s.id())
                   .expect("No stroke data.")
-                  .trimesh;
+                  .parry_mesh;
                 parry2d::query::intersection_test(
                   &na::Isometry::default(),
                   mesh,

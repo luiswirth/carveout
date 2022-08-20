@@ -54,7 +54,7 @@ impl StrokeManager {
 
       let data = StrokeData {
         tessellation,
-        trimesh,
+        parry_mesh: trimesh,
       };
       self.data.insert(stroke.id, data);
     }
@@ -90,16 +90,14 @@ impl StrokeId {
 
 pub struct StrokeData {
   pub tessellation: TessellationStore<render::Vertex>,
-  pub trimesh: parry2d::shape::TriMesh,
+  pub parry_mesh: parry2d::shape::TriMesh,
 }
 
-/// Stroke must have at least two points
-#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
 pub struct Stroke {
   id: StrokeId,
 
-  // TODO: add pos field and store points in curve (model) space
-  //pub points: Vec<CanvasPoint>,
+  /// at least two points
   points: Vec<CanvasPoint>,
   width_multiplier: f32,
   color: LinSrgb,

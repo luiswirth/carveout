@@ -1,29 +1,16 @@
-use std::{
-  fs,
-  io::{Read, Write},
-};
-
 use serde::{Deserialize, Serialize};
 
 use super::{
+  protocol::Command,
   stroke::{Stroke, StrokeId},
-  undo::Command,
 };
 
+#[derive(Default)]
 pub struct CanvasContent {
   ongoing: OngoingContent,
   persistent: PersistentContent,
 }
 impl CanvasContent {
-  pub fn init() -> Self {
-    let ongoing = OngoingContent::init();
-    let persistent = PersistentContent::init();
-    Self {
-      ongoing,
-      persistent,
-    }
-  }
-
   pub fn ongoing(&mut self) -> &mut OngoingContent {
     &mut self.ongoing
   }
@@ -42,49 +29,30 @@ impl CanvasContent {
 }
 
 /// Can be freely mutated.
+#[derive(Default)]
 pub struct OngoingContent {
   pub stroke: Option<Stroke>,
 }
-impl OngoingContent {
-  fn init() -> Self {
-    let stroke = None;
-    Self { stroke }
-  }
-}
 
 /// Should only be mutated through `Command`s.
-#[derive(Serialize, Deserialize)]
+#[derive(Default, Clone, Serialize, Deserialize)]
 pub struct PersistentContent {
   strokes: Vec<Stroke>,
 }
 impl PersistentContent {
-  fn init() -> Self {
-    let strokes = Vec::new();
-    Self { strokes }
-  }
-
   pub fn strokes(&self) -> &[Stroke] {
     &self.strokes
   }
-
-  pub fn load_from_file(file: &mut fs::File) -> Self {
-    let mut data_string = String::new();
-    file.read_to_string(&mut data_string).unwrap();
-    ron::from_str(&data_string).unwrap()
-  }
-
-  pub fn save_to_file(&self, file: &mut fs::File) {
-    let data_string = ron::to_string(self).unwrap();
-    file.write_all(data_string.as_bytes()).unwrap();
-  }
 }
 
+#[derive(Serialize, Deserialize)]
 pub struct AddStrokeCommand(Option<Stroke>);
 impl AddStrokeCommand {
   pub fn new(stroke: Stroke) -> Self {
     Self(Some(stroke))
   }
 }
+#[typetag::serde]
 impl Command for AddStrokeCommand {
   fn execute(&mut self, content: &mut PersistentContent) {
     content.strokes.push(self.0.take().unwrap());
@@ -96,6 +64,7 @@ impl Command for AddStrokeCommand {
   }
 }
 
+#[derive(Serialize, Deserialize)]
 pub enum RemoveStrokeCommand {
   Before(StrokeId),
   After(Box<Stroke>),
@@ -105,6 +74,7 @@ impl RemoveStrokeCommand {
     Self::Before(id)
   }
 }
+#[typetag::serde]
 impl Command for RemoveStrokeCommand {
   fn execute(&mut self, content: &mut PersistentContent) {
     // TODO: optimize! don't look through all strokes. avoid O(n)

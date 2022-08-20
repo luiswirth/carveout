@@ -1,11 +1,4 @@
-use std::fs;
-
-use crate::canvas::{
-  content::PersistentContent,
-  tool::ToolEnum,
-  undo::{ContentCommander, UndoTreeVisualizer},
-  CanvasManager,
-};
+use crate::canvas::{protocol::UndoTreeVisualizer, tool::ToolEnum, CanvasManager};
 
 use palette::{FromColor, Hsv, IntoColor};
 
@@ -36,43 +29,21 @@ impl SidebarUi {
         ui.label("File");
         ui.horizontal_wrapped(|ui| {
           if ui.button("📂").clicked() {
-            let home_dir = dirs::home_dir().unwrap();
-            let file_path = rfd::FileDialog::new()
-              .add_filter("carveout", &["co"])
-              .set_directory(home_dir)
-              .pick_file();
-
-            if let Some(file_path) = file_path {
-              let mut file = fs::File::open(file_path).unwrap();
-              *canvas.content_mut().persistent_mut() = PersistentContent::load_from_file(&mut file);
-              *canvas.content_commander_mut() = ContentCommander::new();
-            };
+            if let Some(savefile) = crate::file::load() {
+              *canvas.content_mut().persistent_mut() = savefile.content;
+            }
           }
           if ui.button("🗄").clicked() {
-            // TODO: serialize content commander
-            let home_dir = dirs::home_dir().unwrap();
-            let file_path = rfd::FileDialog::new()
-              .add_filter("carveout", &["co"])
-              .set_directory(home_dir)
-              .save_file();
-            if let Some(mut file_path) = file_path {
-              match file_path.extension() {
-                Some(ext) if ext == "co" => true,
-                _ => file_path.set_extension("co"),
-              };
-              let mut file = fs::File::create(file_path).unwrap();
-              canvas
-                .content_mut()
-                .persistent_mut()
-                .save_to_file(&mut file);
-            }
+            let content = canvas.content().persistent().clone();
+            let savefile = crate::file::Savefile { content };
+            crate::file::save(&savefile);
           }
         });
       });
 
       ui.group(|ui| {
         ui.label("Undo");
-        let undo_tree = canvas.content_commander_mut();
+        let undo_tree = canvas.protocol_manager_mut();
         ui.horizontal_wrapped(|ui| {
           let undoable = undo_tree.undoable();
           let button = egui::Button::new("⮪");

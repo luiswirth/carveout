@@ -1,6 +1,6 @@
 pub mod content;
+pub mod protocol;
 pub mod tool;
-pub mod undo;
 
 mod gfx;
 mod input;
@@ -8,8 +8,8 @@ mod space;
 mod stroke;
 
 use self::{
-  content::CanvasContent, gfx::CameraWithScreen, input::InputHandler, stroke::StrokeManager,
-  tool::ToolConfig, undo::ContentCommander,
+  content::CanvasContent, gfx::CameraWithScreen, input::InputHandler, protocol::ProtocolManager,
+  stroke::StrokeManager, tool::ToolConfig,
 };
 
 use crate::ui::CanvasScreen;
@@ -18,7 +18,7 @@ use std::{cell::RefCell, rc::Rc};
 
 pub struct CanvasManager {
   content: CanvasContent,
-  content_commander: ContentCommander,
+  protocol_manager: ProtocolManager,
   camera_screen: CameraWithScreen,
   tool_config: ToolConfig,
   input_handler: InputHandler,
@@ -28,8 +28,8 @@ pub struct CanvasManager {
 
 impl CanvasManager {
   pub fn init(device: &wgpu::Device, screen: Rc<RefCell<CanvasScreen>>) -> Self {
-    let content = CanvasContent::init();
-    let content_commander = ContentCommander::new();
+    let content = CanvasContent::default();
+    let protocol_manager = ProtocolManager::default();
     let camera_screen = CameraWithScreen::init(screen);
     let input_handler = InputHandler::default();
     let tool_config = ToolConfig::default();
@@ -38,7 +38,7 @@ impl CanvasManager {
 
     Self {
       content,
-      content_commander,
+      protocol_manager,
       camera_screen,
       input_handler,
       tool_config,
@@ -53,14 +53,14 @@ impl CanvasManager {
       window,
       &mut self.camera_screen,
       &self.tool_config,
-      &mut self.content_commander,
+      &mut self.protocol_manager,
       &mut self.content,
       &self.stroke_manager,
     );
   }
 
   pub fn update(&mut self) {
-    self.content_commander.update(self.content.persistent_mut());
+    self.protocol_manager.update(self.content.persistent_mut());
 
     // TODO: don't set all strokes every frame, only update when changed
     self.stroke_manager.clear_strokes();
@@ -80,19 +80,28 @@ impl CanvasManager {
       .render(device, queue, encoder, &self.camera_screen);
   }
 
+  pub fn content(&self) -> &CanvasContent {
+    &self.content
+  }
+
+  pub fn content_mut(&mut self) -> &mut CanvasContent {
+    &mut self.content
+  }
+
+  #[allow(dead_code)]
+  pub fn protocol_manager(&self) -> &ProtocolManager {
+    &self.protocol_manager
+  }
+
+  pub fn protocol_manager_mut(&mut self) -> &mut ProtocolManager {
+    &mut self.protocol_manager
+  }
+
   pub fn camera_screen_mut(&mut self) -> &mut CameraWithScreen {
     &mut self.camera_screen
   }
 
   pub fn tool_config_mut(&mut self) -> &mut ToolConfig {
     &mut self.tool_config
-  }
-
-  pub fn content_commander_mut(&mut self) -> &mut ContentCommander {
-    &mut self.content_commander
-  }
-
-  pub fn content_mut(&mut self) -> &mut CanvasContent {
-    &mut self.content
   }
 }

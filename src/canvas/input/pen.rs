@@ -1,9 +1,9 @@
 use crate::canvas::{
   content::{AddStrokeCommand, CanvasContent},
+  protocol::ProtocolManager,
   space::*,
   stroke::Stroke,
   tool::PenConfig,
-  undo::ContentCommander,
   CameraWithScreen,
 };
 
@@ -28,7 +28,7 @@ impl PenInputHandler {
     window: &Window,
     camera_screen: &CameraWithScreen,
     pen_config: &PenConfig,
-    content_commander: &mut ContentCommander,
+    content_commander: &mut ProtocolManager,
     content: &mut CanvasContent,
   ) {
     match event {
@@ -104,7 +104,7 @@ impl PenInputHandler {
 
   fn finish_stroke(
     &mut self,
-    content_commander: &mut ContentCommander,
+    content_commander: &mut ProtocolManager,
     content: &mut CanvasContent,
   ) {
     if let Some(finished_stroke) = content.ongoing().stroke.take() {

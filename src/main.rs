@@ -3,6 +3,7 @@
 extern crate nalgebra as na;
 
 mod canvas;
+mod file;
 mod gfx;
 mod ui;
 mod util;
