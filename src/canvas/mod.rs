@@ -65,7 +65,7 @@ impl CanvasManager {
     // TODO: don't set all strokes every frame, only update when changed
     self.stroke_manager.clear_strokes();
     let (ongoing, persistent) = self.content.ongoing_persistent_mut();
-    let strokes = persistent.strokes().iter().chain(&ongoing.stroke);
+    let strokes = persistent.strokes().values().chain(&ongoing.stroke);
     self.stroke_manager.update_strokes(strokes);
   }
 

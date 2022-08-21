@@ -94,7 +94,7 @@ impl InputHandler {
             let remove_list: Vec<StrokeId> = canvas_content
               .persistent()
               .strokes()
-              .iter()
+              .values()
               .filter(|s| {
                 let mesh = &stroke_manager
                   .data()
@@ -107,7 +107,7 @@ impl InputHandler {
                   &na::Isometry::default(),
                   &cursor,
                 )
-                .expect("parry2d error: unsupported?")
+                .unwrap()
               })
               .map(|s| s.id())
               .collect();

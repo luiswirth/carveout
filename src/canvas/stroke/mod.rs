@@ -82,11 +82,6 @@ impl Default for StrokeId {
     Self(uuid::Uuid::new_v4())
   }
 }
-impl StrokeId {
-  pub fn nil() -> StrokeId {
-    Self(uuid::Uuid::nil())
-  }
-}
 
 pub struct StrokeData {
   pub tessellation: TessellationStore<render::Vertex>,

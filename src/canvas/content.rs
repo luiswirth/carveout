@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use serde::{Deserialize, Serialize};
 
 use super::{
@@ -37,35 +39,55 @@ pub struct OngoingContent {
 /// Should only be mutated through `Command`s.
 #[derive(Default, Clone, Serialize, Deserialize)]
 pub struct PersistentContent {
-  strokes: Vec<Stroke>,
+  strokes: HashMap<StrokeId, Stroke>,
 }
 impl PersistentContent {
-  pub fn strokes(&self) -> &[Stroke] {
+  pub fn strokes(&self) -> &HashMap<StrokeId, Stroke> {
     &self.strokes
   }
 }
 
 #[derive(Clone, Serialize, Deserialize)]
-pub struct AddStrokeCommand(Option<Stroke>);
+pub enum AddStrokeCommand {
+  Invalid,
+  Before(Box<Stroke>),
+  After(StrokeId),
+}
+
 impl AddStrokeCommand {
   pub fn new(stroke: Stroke) -> Self {
-    Self(Some(stroke))
+    Self::Before(Box::new(stroke))
   }
 }
 #[typetag::serde]
 impl Command for AddStrokeCommand {
-  fn execute(&mut self, content: &mut PersistentContent) {
-    content.strokes.push(self.0.take().unwrap());
+  fn execute(&mut self, content: &mut PersistentContent) -> Result<(), ()> {
+    match std::mem::replace(self, Self::Invalid) {
+      Self::Before(stroke) => {
+        let id = stroke.id();
+        let result = content.strokes.insert(id, *stroke);
+        assert!(result.is_none());
+        *self = Self::After(id);
+      }
+      _ => unreachable!(),
+    };
+    Ok(())
   }
 
   fn rollback(&mut self, content: &mut PersistentContent) {
-    // TODO: fix
-    self.0 = Some(content.strokes.pop().unwrap());
+    match std::mem::replace(self, Self::Invalid) {
+      Self::After(id) => {
+        let stroke = content.strokes.remove(&id).unwrap();
+        *self = Self::Before(Box::new(stroke));
+      }
+      _ => unreachable!(),
+    };
   }
 }
 
 #[derive(Clone, Serialize, Deserialize)]
 pub enum RemoveStrokeCommand {
+  Invalid,
   Before(StrokeId),
   After(Box<Stroke>),
 }
@@ -76,28 +98,26 @@ impl RemoveStrokeCommand {
 }
 #[typetag::serde]
 impl Command for RemoveStrokeCommand {
-  fn execute(&mut self, content: &mut PersistentContent) {
-    // TODO: optimize! don't look through all strokes. avoid O(n)
+  fn execute(&mut self, content: &mut PersistentContent) -> Result<(), ()> {
     match self {
       Self::Before(id) => {
-        let stroke = content
-          .strokes
-          .remove(content.strokes.iter().position(|s| s.id() == *id).unwrap());
+        let stroke = content.strokes.remove(id).unwrap();
         *self = Self::After(Box::new(stroke));
+        Ok(())
       }
-      Self::After(_) => unreachable!(),
+      _ => unreachable!(),
     }
   }
 
   fn rollback(&mut self, content: &mut PersistentContent) {
-    let id;
-    match std::mem::replace(self, Self::Before(StrokeId::nil())) {
+    match std::mem::replace(self, Self::Invalid) {
       Self::After(stroke) => {
-        id = stroke.id();
-        content.strokes.push(*stroke);
+        let id = stroke.id();
+        let result = content.strokes.insert(id, *stroke);
+        assert!(result.is_none());
+        *self = Self::Before(id);
       }
-      Self::Before(_) => unreachable!(),
+      _ => unreachable!(),
     }
-    *self = Self::Before(id);
   }
 }

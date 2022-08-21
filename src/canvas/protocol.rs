@@ -10,7 +10,7 @@ use std::{
 
 #[typetag::serde(tag = "type")]
 pub trait Command: DynClone {
-  fn execute(&mut self, content: &mut PersistentContent);
+  fn execute(&mut self, content: &mut PersistentContent) -> Result<(), ()>;
   fn rollback(&mut self, content: &mut PersistentContent);
 }
 dyn_clone::clone_trait_object!(Command);
@@ -52,11 +52,12 @@ impl ProtocolManager {
     for todo in self.queue.drain(..) {
       match todo {
         Todo::Do(mut cmd) => {
-          cmd.execute(content);
-          let (new, new_id) = ProtocolNode::new(cmd, self.protocol.head);
-          self.protocol.nodes.insert(new_id, new);
-          self.protocol.head_node_mut().children.push(new_id);
-          self.protocol.head = new_id;
+          if let Ok(()) = cmd.execute(content) {
+            let (new, new_id) = ProtocolNode::new(cmd, self.protocol.head);
+            self.protocol.nodes.insert(new_id, new);
+            self.protocol.head_node_mut().children.push(new_id);
+            self.protocol.head = new_id;
+          }
         }
         Todo::Undo => {
           self.protocol.head_node_mut().command.rollback(content);
@@ -65,7 +66,12 @@ impl ProtocolManager {
         Todo::Redo => {
           let new_head = self.protocol.head_node_mut().children.last().copied();
           if let Some(new_head) = new_head {
-            self.protocol.node_mut(new_head).command.execute(content);
+            self
+              .protocol
+              .node_mut(new_head)
+              .command
+              .execute(content)
+              .unwrap();
             self.protocol.head = new_head;
           }
         }
@@ -172,7 +178,9 @@ impl ProtocolNode {
 struct SentinelCommand;
 #[typetag::serde]
 impl Command for SentinelCommand {
-  fn execute(&mut self, _content: &mut PersistentContent) {}
+  fn execute(&mut self, _content: &mut PersistentContent) -> Result<(), ()> {
+    Ok(())
+  }
   fn rollback(&mut self, _content: &mut PersistentContent) {}
 }
 
