@@ -3,9 +3,8 @@ mod pen;
 use self::pen::PenInputHandler;
 
 use super::{
-  content::{CanvasContent, RemoveStrokeCommand},
+  content::{command::RemoveStrokeCommand, ContentManager},
   gfx::CameraWithScreen,
-  protocol::ProtocolManager,
   space::*,
   stroke::{StrokeId, StrokeManager},
   tool::{ToolConfig, ToolEnum},
@@ -32,32 +31,23 @@ impl InputHandler {
     &mut self,
     event: &Event,
     window: &winit::window::Window,
+    content: &mut ContentManager,
+    stroke_manager: &StrokeManager,
     camera_screen: &mut CameraWithScreen,
     tool_config: &ToolConfig,
-    content_commander: &mut ProtocolManager,
-    canvas_content: &mut CanvasContent,
-    stroke_manager: &StrokeManager,
   ) {
     if let Event::WindowEvent { event, window_id } = event {
       assert_eq!(*window_id, window.id());
 
       match tool_config.selected {
-        ToolEnum::Pen => self.pen_handler.handle_event(
-          event,
-          window,
-          camera_screen,
-          &tool_config.pen,
-          content_commander,
-          canvas_content,
-        ),
-        ToolEnum::Eraser => self.handle_eraser_tool_event(
-          event,
-          window,
-          camera_screen,
-          content_commander,
-          canvas_content,
-          stroke_manager,
-        ),
+        ToolEnum::Pen => {
+          self
+            .pen_handler
+            .handle_event(event, window, content, camera_screen, &tool_config.pen)
+        }
+        ToolEnum::Eraser => {
+          self.handle_eraser_tool_event(event, window, content, camera_screen, stroke_manager)
+        }
         ToolEnum::Translate => self.handle_translate_tool_event(event, window, camera_screen),
         ToolEnum::Rotate => self.handle_rotate_tool_event(event, window, camera_screen),
         ToolEnum::Scale => self.handle_scale_tool_event(event, window, camera_screen),
@@ -70,9 +60,8 @@ impl InputHandler {
     &mut self,
     event: &WindowEvent,
     window: &Window,
+    content: &mut ContentManager,
     camera_screen: &mut CameraWithScreen,
-    undo_tree: &mut ProtocolManager,
-    canvas_content: &mut CanvasContent,
     stroke_manager: &StrokeManager,
   ) {
     match event {
@@ -86,7 +75,7 @@ impl InputHandler {
           None => return,
         };
         let pos = CanvasPoint::from_screen(pos, camera_screen);
-        let remove_list: Vec<StrokeId> = canvas_content
+        let remove_list: Vec<StrokeId> = content
           .persistent()
           .strokes()
           .values()
@@ -102,7 +91,7 @@ impl InputHandler {
           .collect();
 
         for id in remove_list {
-          undo_tree.do_it(Box::new(RemoveStrokeCommand::new(id)))
+          content.schedule_cmd(Box::new(RemoveStrokeCommand::new(id)))
         }
       }
 

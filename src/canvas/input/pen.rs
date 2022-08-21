@@ -1,6 +1,5 @@
 use crate::canvas::{
-  content::{AddStrokeCommand, CanvasContent},
-  protocol::ProtocolManager,
+  content::{command::AddStrokeCommand, ContentManager},
   space::*,
   stroke::Stroke,
   tool::PenConfig,
@@ -26,10 +25,9 @@ impl PenInputHandler {
     &mut self,
     event: &WindowEvent,
     window: &Window,
+    content: &mut ContentManager,
     camera_screen: &CameraWithScreen,
     pen_config: &PenConfig,
-    content_commander: &mut ProtocolManager,
-    content: &mut CanvasContent,
   ) {
     match event {
       WindowEvent::CursorMoved { position, .. } => {
@@ -55,7 +53,7 @@ impl PenInputHandler {
             }
             event::ElementState::Released => {
               self.clicked = false;
-              self.finish_stroke(content_commander, content);
+              self.finish_stroke(content);
             }
           }
         }
@@ -102,13 +100,9 @@ impl PenInputHandler {
     }
   }
 
-  fn finish_stroke(
-    &mut self,
-    content_commander: &mut ProtocolManager,
-    content: &mut CanvasContent,
-  ) {
+  fn finish_stroke(&mut self, content: &mut ContentManager) {
     if let Some(finished_stroke) = content.ongoing().stroke.take() {
-      content_commander.do_it(Box::new(AddStrokeCommand::new(finished_stroke)));
+      content.schedule_cmd(Box::new(AddStrokeCommand::new(finished_stroke)));
     }
   }
 }

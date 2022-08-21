@@ -1,5 +1,4 @@
 pub mod content;
-pub mod protocol;
 pub mod tool;
 
 mod gfx;
@@ -8,8 +7,8 @@ mod space;
 mod stroke;
 
 use self::{
-  content::CanvasContent, gfx::CameraWithScreen, input::InputHandler, protocol::ProtocolManager,
-  stroke::StrokeManager, tool::ToolConfig,
+  content::ContentManager, gfx::CameraWithScreen, input::InputHandler, stroke::StrokeManager,
+  tool::ToolConfig,
 };
 
 use crate::ui::CanvasScreen;
@@ -17,8 +16,7 @@ use crate::ui::CanvasScreen;
 use std::{cell::RefCell, rc::Rc};
 
 pub struct CanvasManager {
-  content: CanvasContent,
-  protocol_manager: ProtocolManager,
+  content: ContentManager,
   camera_screen: CameraWithScreen,
   tool_config: ToolConfig,
   input_handler: InputHandler,
@@ -28,8 +26,7 @@ pub struct CanvasManager {
 
 impl CanvasManager {
   pub fn init(device: &wgpu::Device, screen: Rc<RefCell<CanvasScreen>>) -> Self {
-    let content = CanvasContent::default();
-    let protocol_manager = ProtocolManager::default();
+    let content = ContentManager::default();
     let camera_screen = CameraWithScreen::init(screen);
     let input_handler = InputHandler::default();
     let tool_config = ToolConfig::default();
@@ -38,7 +35,6 @@ impl CanvasManager {
 
     Self {
       content,
-      protocol_manager,
       camera_screen,
       input_handler,
       tool_config,
@@ -51,20 +47,19 @@ impl CanvasManager {
     self.input_handler.handle_event(
       event,
       window,
-      &mut self.camera_screen,
-      &self.tool_config,
-      &mut self.protocol_manager,
       &mut self.content,
       &self.stroke_manager,
+      &mut self.camera_screen,
+      &self.tool_config,
     );
   }
 
   pub fn update(&mut self) {
-    self.protocol_manager.update(self.content.persistent_mut());
+    self.content.update();
 
-    // TODO: don't set all strokes every frame, only update when changed
+    // TODO: update according to content delta
     self.stroke_manager.clear_strokes();
-    let (ongoing, persistent) = self.content.ongoing_persistent_mut();
+    let (persistent, ongoing) = self.content.persistent_ongoing_mut();
     let strokes = persistent.strokes().values().chain(&ongoing.stroke);
     self.stroke_manager.update_strokes(strokes);
   }
@@ -80,20 +75,12 @@ impl CanvasManager {
       .render(device, queue, encoder, &self.camera_screen);
   }
 
-  pub fn content(&self) -> &CanvasContent {
+  pub fn content(&self) -> &ContentManager {
     &self.content
   }
 
-  pub fn content_mut(&mut self) -> &mut CanvasContent {
+  pub fn content_mut(&mut self) -> &mut ContentManager {
     &mut self.content
-  }
-
-  pub fn protocol_manager(&self) -> &ProtocolManager {
-    &self.protocol_manager
-  }
-
-  pub fn protocol_manager_mut(&mut self) -> &mut ProtocolManager {
-    &mut self.protocol_manager
   }
 
   pub fn camera_screen_mut(&mut self) -> &mut CameraWithScreen {

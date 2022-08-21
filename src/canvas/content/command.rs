@@ -1,51 +1,16 @@
-use std::collections::HashMap;
-
+use dyn_clone::DynClone;
 use serde::{Deserialize, Serialize};
 
-use super::{
-  protocol::Command,
-  stroke::{Stroke, StrokeId},
-};
+use crate::canvas::stroke::{Stroke, StrokeId};
 
-#[derive(Default)]
-pub struct CanvasContent {
-  ongoing: OngoingContent,
-  persistent: PersistentContent,
+use super::PersistentContent;
+
+#[typetag::serde(tag = "type")]
+pub trait ProtocolCommand: DynClone {
+  fn execute(&mut self, content: &mut PersistentContent) -> Result<(), ()>;
+  fn rollback(&mut self, content: &mut PersistentContent);
 }
-impl CanvasContent {
-  pub fn ongoing(&mut self) -> &mut OngoingContent {
-    &mut self.ongoing
-  }
-
-  pub fn persistent(&self) -> &PersistentContent {
-    &self.persistent
-  }
-
-  pub fn persistent_mut(&mut self) -> &mut PersistentContent {
-    &mut self.persistent
-  }
-
-  pub fn ongoing_persistent_mut(&mut self) -> (&mut OngoingContent, &mut PersistentContent) {
-    (&mut self.ongoing, &mut self.persistent)
-  }
-}
-
-/// Can be freely mutated.
-#[derive(Default)]
-pub struct OngoingContent {
-  pub stroke: Option<Stroke>,
-}
-
-/// Should only be mutated through `Command`s.
-#[derive(Default, Clone, Serialize, Deserialize)]
-pub struct PersistentContent {
-  strokes: HashMap<StrokeId, Stroke>,
-}
-impl PersistentContent {
-  pub fn strokes(&self) -> &HashMap<StrokeId, Stroke> {
-    &self.strokes
-  }
-}
+dyn_clone::clone_trait_object!(ProtocolCommand);
 
 #[derive(Clone, Serialize, Deserialize)]
 pub enum AddStrokeCommand {
@@ -60,7 +25,7 @@ impl AddStrokeCommand {
   }
 }
 #[typetag::serde]
-impl Command for AddStrokeCommand {
+impl ProtocolCommand for AddStrokeCommand {
   fn execute(&mut self, content: &mut PersistentContent) -> Result<(), ()> {
     match std::mem::replace(self, Self::Invalid) {
       Self::Before(stroke) => {
@@ -97,7 +62,7 @@ impl RemoveStrokeCommand {
   }
 }
 #[typetag::serde]
-impl Command for RemoveStrokeCommand {
+impl ProtocolCommand for RemoveStrokeCommand {
   fn execute(&mut self, content: &mut PersistentContent) -> Result<(), ()> {
     match self {
       Self::Before(id) => {

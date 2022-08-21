@@ -1,19 +1,19 @@
-use crate::canvas::{protocol::UndoTreeVisualizer, tool::ToolEnum, CanvasManager};
+use crate::canvas::{content::protocol::ProtocolUi, tool::ToolEnum, CanvasManager};
 
 use palette::{FromColor, Hsv, IntoColor};
 
 pub struct SidebarUi {
   rainbow_mode: bool,
-  undo_tree_visualizer: UndoTreeVisualizer,
-  undo_tree_enabled: bool,
+  protocol_ui: ProtocolUi,
+  protocol_tree_enabled: bool,
 }
 
 impl SidebarUi {
   pub fn init() -> Self {
     Self {
       rainbow_mode: false,
-      undo_tree_visualizer: UndoTreeVisualizer::default(),
-      undo_tree_enabled: false,
+      protocol_ui: ProtocolUi::default(),
+      protocol_tree_enabled: false,
     }
   }
 
@@ -31,12 +31,12 @@ impl SidebarUi {
           if ui.button("📂").clicked() {
             if let Some(savefile) = crate::file::load() {
               *canvas.content_mut().persistent_mut() = savefile.content;
-              *canvas.protocol_manager_mut().protocol_mut() = savefile.protocol;
+              *canvas.content_mut().protocol_mut() = savefile.protocol;
             }
           }
           if ui.button("🗄").clicked() {
             let content = canvas.content().persistent().clone();
-            let protocol = canvas.protocol_manager().protocol().clone();
+            let protocol = canvas.content().protocol().clone();
             let savefile = crate::file::Savefile { content, protocol };
             crate::file::save(&savefile);
           }
@@ -45,29 +45,29 @@ impl SidebarUi {
 
       ui.group(|ui| {
         ui.label("Undo");
-        let undo_tree = canvas.protocol_manager_mut();
+        let content = canvas.content_mut();
         ui.horizontal_wrapped(|ui| {
-          let undoable = undo_tree.undoable();
+          let undoable = content.undoable();
           let button = egui::Button::new("⮪");
           let response = ui.add_enabled(undoable, button);
           if undoable && response.clicked() {
-            undo_tree.undo();
+            content.schedule_undo();
           }
 
-          let redoable = undo_tree.redoable();
+          let redoable = content.redoable();
           let button = egui::Button::new("⮫");
           let response = ui.add_enabled(redoable, button);
           if redoable && response.clicked() {
-            undo_tree.redo();
+            content.schedule_redo();
           }
         });
 
-        ui.checkbox(&mut self.undo_tree_enabled, "Undo Tree Visualizer");
-        if self.undo_tree_enabled {
-          egui::Window::new("Undo Tree Visualizer")
+        ui.checkbox(&mut self.protocol_tree_enabled, "Protocol Tree Visualizer");
+        if self.protocol_tree_enabled {
+          egui::Window::new("Protocol Tree Visualizer")
             .collapsible(false)
             .resizable(false)
-            .show(ui.ctx(), |ui| self.undo_tree_visualizer.ui(ui, undo_tree));
+            .show(ui.ctx(), |ui| self.protocol_ui.ui(ui, content));
         }
       });
 

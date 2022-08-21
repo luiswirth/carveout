@@ -1,4 +1,4 @@
-use crate::canvas::{content::PersistentContent, protocol::ContentProtocol};
+use crate::canvas::content::{protocol::Protocol, PersistentContent};
 
 use serde::{Deserialize, Serialize};
 use std::{
@@ -9,7 +9,7 @@ use std::{
 #[derive(Serialize, Deserialize)]
 pub struct Savefile {
   pub content: PersistentContent,
-  pub protocol: ContentProtocol,
+  pub protocol: Protocol,
 }
 
 pub fn load() -> Option<Savefile> {
