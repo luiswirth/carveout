@@ -101,9 +101,14 @@ impl Command for RemoveStrokeCommand {
   fn execute(&mut self, content: &mut PersistentContent) -> Result<(), ()> {
     match self {
       Self::Before(id) => {
-        let stroke = content.strokes.remove(id).unwrap();
-        *self = Self::After(Box::new(stroke));
-        Ok(())
+        let stroke = content.strokes.remove(id);
+        match stroke {
+          Some(stroke) => {
+            *self = Self::After(Box::new(stroke));
+            Ok(())
+          }
+          None => Err(()),
+        }
       }
       _ => unreachable!(),
     }

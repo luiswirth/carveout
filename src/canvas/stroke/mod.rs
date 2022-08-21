@@ -9,14 +9,14 @@ use palette::LinSrgb;
 use std::collections::HashMap;
 
 pub struct StrokeManager {
-  data: HashMap<StrokeId, StrokeData>,
+  data: StrokeData,
   tessellator: StrokeTessellator,
   renderer: StrokeRenderer,
 }
 
 impl StrokeManager {
   pub fn init(device: &wgpu::Device) -> Self {
-    let data = HashMap::new();
+    let data = StrokeData::default();
     let tessellator = StrokeTessellator::init();
     let renderer = StrokeRenderer::init(device);
 
@@ -27,12 +27,12 @@ impl StrokeManager {
     }
   }
 
-  pub fn data(&self) -> &HashMap<StrokeId, StrokeData> {
+  pub fn data(&self) -> &StrokeData {
     &self.data
   }
 
   pub fn clear_strokes(&mut self) {
-    self.data.clear();
+    self.data = StrokeData::default();
   }
 
   pub fn update_strokes<'a>(&mut self, strokes: impl IntoIterator<Item = &'a Stroke>) {
@@ -52,11 +52,8 @@ impl StrokeManager {
 
       let trimesh = parry2d::shape::TriMesh::new(vertices, indices);
 
-      let data = StrokeData {
-        tessellation,
-        parry_mesh: trimesh,
-      };
-      self.data.insert(stroke.id, data);
+      self.data.tessellations.insert(stroke.id, tessellation);
+      self.data.parry_meshes.insert(stroke.id, trimesh);
     }
   }
 
@@ -67,7 +64,7 @@ impl StrokeManager {
     encoder: &mut wgpu::CommandEncoder,
     camera_screen: &CameraWithScreen,
   ) {
-    let stores = self.data.values_mut().map(|d| &mut d.tessellation);
+    let stores = self.data.tessellations.values_mut();
 
     self
       .renderer
@@ -83,9 +80,10 @@ impl Default for StrokeId {
   }
 }
 
+#[derive(Default)]
 pub struct StrokeData {
-  pub tessellation: TessellationStore<render::Vertex>,
-  pub parry_mesh: parry2d::shape::TriMesh,
+  pub tessellations: HashMap<StrokeId, TessellationStore<render::Vertex>>,
+  pub parry_meshes: HashMap<StrokeId, parry2d::shape::TriMesh>,
 }
 
 #[derive(Clone, serde::Serialize, serde::Deserialize)]

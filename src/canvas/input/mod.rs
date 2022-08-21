@@ -13,6 +13,7 @@ use super::{
 
 use crate::Event;
 
+use parry2d::query::PointQuery;
 use winit::{
   event::{ElementState, MouseButton, MouseScrollDelta, WindowEvent},
   window::Window,
@@ -84,53 +85,32 @@ impl InputHandler {
           Some(p) => p,
           None => return,
         };
+        let pos = CanvasPoint::from_screen(pos, camera_screen);
+        let remove_list: Vec<StrokeId> = canvas_content
+          .persistent()
+          .strokes()
+          .values()
+          .filter(|s| {
+            let mesh = stroke_manager
+              .data()
+              .parry_meshes
+              .get(&s.id())
+              .expect("No parry data.");
+            mesh.contains_point(&na::Isometry2::default(), &pos.cast())
+          })
+          .map(|s| s.id())
+          .collect();
 
-        match self.last_cursor_pos {
-          None => {}
-          Some(last_pos) => {
-            let pos = CanvasPoint::from_screen(pos, camera_screen);
-            let last_pos = CanvasPoint::from_screen(last_pos, camera_screen);
-            let cursor = parry2d::shape::Segment::new(last_pos.cast(), pos.cast());
-            let remove_list: Vec<StrokeId> = canvas_content
-              .persistent()
-              .strokes()
-              .values()
-              .filter(|s| {
-                let mesh = &stroke_manager
-                  .data()
-                  .get(&s.id())
-                  .expect("No stroke data.")
-                  .parry_mesh;
-                parry2d::query::intersection_test(
-                  &na::Isometry::default(),
-                  mesh,
-                  &na::Isometry::default(),
-                  &cursor,
-                )
-                .unwrap()
-              })
-              .map(|s| s.id())
-              .collect();
-
-            for id in remove_list {
-              undo_tree.do_it(Box::new(RemoveStrokeCommand::new(id)))
-            }
-          }
+        for id in remove_list {
+          undo_tree.do_it(Box::new(RemoveStrokeCommand::new(id)))
         }
-        self.last_cursor_pos = Some(pos);
       }
 
       WindowEvent::MouseInput { state, button, .. } => {
         if *button == MouseButton::Left {
           match state {
-            ElementState::Pressed => {
-              self.mouse_clicked = true;
-              self.last_cursor_pos = None;
-            }
-            ElementState::Released => {
-              self.mouse_clicked = false;
-              self.last_cursor_pos = None;
-            }
+            ElementState::Pressed => self.mouse_clicked = true,
+            ElementState::Released => self.mouse_clicked = false,
           }
         }
       }
