@@ -1,41 +1,40 @@
-use std::{collections::HashMap, f32::consts::TAU};
+use std::f32::consts::TAU;
 
 use serde::{Deserialize, Serialize};
 
 use super::{command::ProtocolCommand, ContentManager};
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub(super) struct ProtocolNodeId(pub uuid::Uuid);
-impl Default for ProtocolNodeId {
-  fn default() -> Self {
-    let uuid = uuid::Uuid::new_v4();
-    Self(uuid)
-  }
-}
+pub(super) struct ProtocolNodeId(pub u32);
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct Protocol {
-  pub(super) nodes: HashMap<ProtocolNodeId, ProtocolNode>,
+  pub(super) nodes: Vec<ProtocolNode>,
   pub(super) head: ProtocolNodeId,
 }
 impl Default for Protocol {
   fn default() -> Self {
-    let (root, root_id) = ProtocolNode::root();
-    let mut nodes = HashMap::default();
-    nodes.insert(root_id, root);
-    let head = root_id;
+    let root = ProtocolNode::root();
+    let nodes = vec![root];
+    let head = ProtocolNodeId(0);
     Self { nodes, head }
   }
 }
 impl Protocol {
   pub(super) fn node_mut(&mut self, id: ProtocolNodeId) -> &mut ProtocolNode {
-    self.nodes.get_mut(&id).unwrap()
+    self.nodes.get_mut(usize::try_from(id.0).unwrap()).unwrap()
   }
   pub(super) fn head_node(&self) -> &ProtocolNode {
-    self.nodes.get(&self.head).unwrap()
+    self
+      .nodes
+      .get(usize::try_from(self.head.0).unwrap())
+      .unwrap()
   }
   pub(super) fn head_node_mut(&mut self) -> &mut ProtocolNode {
-    self.nodes.get_mut(&self.head).unwrap()
+    self
+      .nodes
+      .get_mut(usize::try_from(self.head.0).unwrap())
+      .unwrap()
   }
 }
 
@@ -46,36 +45,35 @@ pub(super) struct ProtocolNode {
 
   pub(super) parent: ProtocolNodeId,
   pub(super) children: Vec<ProtocolNodeId>,
+  pub(super) selected_child: Option<usize>,
 }
 impl ProtocolNode {
-  pub fn root() -> (Self, ProtocolNodeId) {
-    let id = ProtocolNodeId::default();
+  pub fn root() -> Self {
+    // root is it's own parent
+    let parent = ProtocolNodeId(0);
     let command = Box::new(SentinelCommand);
     let creation_time = chrono::Local::now();
     let children = Vec::default();
-    (
-      Self {
-        command,
-        creation_time,
-        parent: id,
-        children,
-      },
-      id,
-    )
+    let selected_child = None;
+    Self {
+      command,
+      creation_time,
+      parent,
+      children,
+      selected_child,
+    }
   }
-  pub fn new(command: Box<dyn ProtocolCommand>, parent: ProtocolNodeId) -> (Self, ProtocolNodeId) {
-    let id = ProtocolNodeId::default();
+  pub fn new(command: Box<dyn ProtocolCommand>, parent: ProtocolNodeId) -> Self {
     let creation_time = chrono::Local::now();
     let children = Vec::default();
-    (
-      Self {
-        command,
-        creation_time,
-        parent,
-        children,
-      },
-      id,
-    )
+    let selected_child = None;
+    Self {
+      command,
+      creation_time,
+      parent,
+      children,
+      selected_child,
+    }
   }
 }
 

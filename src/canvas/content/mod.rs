@@ -3,7 +3,7 @@ pub mod protocol;
 
 use self::{
   command::ProtocolCommand,
-  protocol::{Protocol, ProtocolNode},
+  protocol::{Protocol, ProtocolNode, ProtocolNodeId},
 };
 
 use super::stroke::{Stroke, StrokeId};
@@ -33,10 +33,10 @@ impl ContentManager {
     self.pending_changes.push_back(PendingChange::Redo)
   }
 
-  pub fn switch_protocol_branch(&mut self, i: usize) {
+  pub fn switch_protocol_branch(&mut self, child_index: usize) {
     let head = self.protocol.head_node_mut();
-    let i_last = head.children.len() - 1;
-    head.children.swap(i, i_last);
+    assert!(child_index < head.children.len());
+    head.selected_child = Some(child_index);
   }
 
   pub fn undoable(&self) -> bool {
@@ -52,9 +52,12 @@ impl ContentManager {
       match todo {
         PendingChange::Do(mut cmd) => {
           if let Ok(()) = cmd.execute(&mut self.persistent) {
-            let (new, new_id) = ProtocolNode::new(cmd, self.protocol.head);
-            self.protocol.nodes.insert(new_id, new);
-            self.protocol.head_node_mut().children.push(new_id);
+            let new = ProtocolNode::new(cmd, self.protocol.head);
+            let new_id = ProtocolNodeId(u32::try_from(self.protocol.nodes.len()).unwrap());
+            self.protocol.nodes.push(new);
+            let old_head = self.protocol.head_node_mut();
+            old_head.children.push(new_id);
+            old_head.selected_child = Some(old_head.children.len() - 1);
             self.protocol.head = new_id;
           }
         }
@@ -67,15 +70,16 @@ impl ContentManager {
           self.protocol.head = self.protocol.head_node().parent;
         }
         PendingChange::Redo => {
-          let new_head = self.protocol.head_node_mut().children.last().copied();
-          if let Some(new_head) = new_head {
+          let head = self.protocol.head_node_mut();
+          if let Some(selected_child) = head.selected_child {
+            let selected_child = head.children[selected_child];
             self
               .protocol
-              .node_mut(new_head)
+              .node_mut(selected_child)
               .command
               .execute(&mut self.persistent)
               .unwrap();
-            self.protocol.head = new_head;
+            self.protocol.head = selected_child;
           }
         }
       }
