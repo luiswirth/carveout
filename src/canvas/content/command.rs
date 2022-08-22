@@ -5,7 +5,7 @@ use crate::canvas::stroke::{Stroke, StrokeId};
 
 use super::PersistentContent;
 
-#[typetag::serde(tag = "type")]
+#[typetag::serde(tag = "type", content = "value")]
 pub trait ProtocolCommand: DynClone {
   fn execute(&mut self, content: &mut PersistentContent) -> Result<(), ()>;
   fn rollback(&mut self, content: &mut PersistentContent);
