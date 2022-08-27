@@ -92,6 +92,10 @@ impl ContentManager {
     &self.delta
   }
 
+  pub fn clear_delta(&mut self) {
+    self.delta.clear();
+  }
+
   pub fn replace(&mut self, content: Content, protocol: Protocol) {
     self.content = content;
     self.protocol = protocol;

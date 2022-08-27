@@ -6,6 +6,10 @@ pub struct ContentAccess<'a> {
   pub(super) content: &'a Content,
 }
 impl<'a> ContentAccess<'a> {
+  pub fn stroke(&self, id: StrokeId) -> &Stroke {
+    self.content.strokes.get(id.0).unwrap()
+  }
+
   pub fn strokes(&self) -> impl Iterator<Item = (StrokeId, &Stroke)> {
     self
       .content
@@ -66,10 +70,22 @@ impl<'a> ContentAccessMut<'a> {
 pub struct ContentDelta {
   pub strokes: StrokeDelta,
 }
+impl ContentDelta {
+  pub fn clear(&mut self) {
+    self.strokes.clear();
+  }
+}
 
 #[derive(Default)]
 pub struct StrokeDelta {
   pub added: Vec<StrokeId>,
   pub modified: Vec<StrokeId>,
   pub removed: Vec<StrokeId>,
+}
+impl StrokeDelta {
+  pub fn clear(&mut self) {
+    self.added.clear();
+    self.modified.clear();
+    self.removed.clear();
+  }
 }

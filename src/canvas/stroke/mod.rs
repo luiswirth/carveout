@@ -2,7 +2,14 @@ mod render;
 mod tessellate;
 
 use self::{render::StrokeRenderer, tessellate::StrokeTessellator};
-use super::{content::StrokeId, space::*, CameraWithScreen};
+use super::{
+  content::{
+    access::{ContentAccess, StrokeDelta},
+    StrokeId,
+  },
+  space::*,
+  CameraWithScreen,
+};
 use crate::gfx::tessellate::TessellationStore;
 
 use palette::LinSrgb;
@@ -31,12 +38,15 @@ impl StrokeManager {
     &self.data
   }
 
-  pub fn clear_strokes(&mut self) {
-    self.data = StrokeData::default();
-  }
+  pub fn update_strokes(&mut self, content: ContentAccess, stroke_delta: &StrokeDelta) {
+    let need_update = stroke_delta
+      .added
+      .iter()
+      .chain(stroke_delta.modified.iter())
+      .copied();
 
-  pub fn update_strokes<'a>(&mut self, strokes: impl Iterator<Item = (StrokeId, &'a Stroke)>) {
-    for (id, stroke) in strokes {
+    for stroke_id in need_update {
+      let stroke = content.stroke(stroke_id);
       let tessellation = self.tessellator.tessellate(stroke);
 
       let vertices = tessellation
@@ -51,8 +61,13 @@ impl StrokeManager {
         .collect();
       let trimesh = parry2d::shape::TriMesh::new(vertices, indices);
 
-      self.data.tessellations.insert(id, tessellation);
-      self.data.parry_meshes.insert(id, trimesh);
+      self.data.tessellations.insert(stroke_id, tessellation);
+      self.data.parry_meshes.insert(stroke_id, trimesh);
+    }
+
+    for stroke_id in stroke_delta.removed.iter() {
+      self.data.tessellations.remove(stroke_id);
+      self.data.parry_meshes.remove(stroke_id);
     }
   }
 

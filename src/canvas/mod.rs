@@ -55,11 +55,12 @@ impl CanvasManager {
   }
 
   pub fn update(&mut self) {
-    // TODO: update according to content delta
-    self.stroke_manager.clear_strokes();
     let access = self.content.access();
-    let strokes = access.strokes();
-    self.stroke_manager.update_strokes(strokes);
+    let delta = self.content.delta();
+
+    self.stroke_manager.update_strokes(access, &delta.strokes);
+
+    self.content.clear_delta();
   }
 
   pub fn render(
