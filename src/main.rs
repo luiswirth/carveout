@@ -31,7 +31,7 @@ impl Application {
 
     let event_loop = EventLoop::new();
     let window = winit::window::WindowBuilder::new()
-      .with_title(env!("CARGO_PKG_NAME"))
+      .with_title(util::APP_NAME)
       .build(&event_loop)
       .expect("Fatal error: Failed to create winit window.");
     let gfx = Gfx::init(&window).await;

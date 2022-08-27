@@ -1,3 +1,5 @@
+use crate::util;
+
 pub fn init_log() {
   use tracing::metadata::LevelFilter;
   use tracing_subscriber::{filter, prelude::*};
@@ -25,8 +27,8 @@ pub fn init_log() {
 }
 
 fn create_log_file() -> Option<std::fs::File> {
-  let cache_dir = dirs::cache_dir()?;
-  let path = cache_dir.join(env!("CARGO_PKG_NAME")).join("logs");
+  let cache_dir = util::APP_DIRS.cache_dir();
+  let path = cache_dir.join("logs");
   std::fs::create_dir_all(path.clone()).ok()?;
   let file_name = format!("{}.log", chrono::Local::now().format("%Y%m%dT%H%M%S"));
   std::fs::File::create(path.join(file_name)).ok()

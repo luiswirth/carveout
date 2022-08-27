@@ -1,4 +1,7 @@
-use crate::canvas::content::{protocol::Protocol, Content};
+use crate::{
+  canvas::content::{protocol::Protocol, Content},
+  util,
+};
 
 use serde::{Deserialize, Serialize};
 use std::{
@@ -13,7 +16,7 @@ pub struct Savefile {
 }
 
 pub fn load() -> Option<Savefile> {
-  let home_dir = dirs::home_dir().unwrap();
+  let home_dir = util::USER_DIRS.home_dir();
   let file_path = rfd::FileDialog::new()
     .add_filter("carveout", &["co"])
     .set_directory(home_dir)
@@ -33,7 +36,7 @@ pub fn load() -> Option<Savefile> {
 }
 
 pub fn save(savefile: &Savefile) {
-  let home_dir = dirs::home_dir().unwrap();
+  let home_dir = util::USER_DIRS.home_dir();
   let file_path = rfd::FileDialog::new()
     .add_filter("carveout", &["co"])
     .set_directory(home_dir)

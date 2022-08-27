@@ -2,9 +2,17 @@ mod log;
 mod space_unit;
 
 pub use log::init_log;
+use once_cell::sync::Lazy;
 pub use space_unit::{SpacePoint, SpaceUnit, SpaceVector};
 
 pub const INVALID_U32: u32 = u32::MAX;
+
+pub static APP_NAME: &str = env!("CARGO_PKG_NAME");
+
+pub static USER_DIRS: Lazy<directories::UserDirs> =
+  Lazy::new(|| directories::UserDirs::new().unwrap());
+pub static APP_DIRS: Lazy<directories::ProjectDirs> =
+  Lazy::new(|| directories::ProjectDirs::from("", "", APP_NAME).unwrap());
 
 pub fn tuple2array4<T>(t: (T, T, T, T)) -> [T; 4] {
   [t.0, t.1, t.2, t.3]
