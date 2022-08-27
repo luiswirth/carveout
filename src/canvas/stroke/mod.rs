@@ -2,7 +2,7 @@ mod render;
 mod tessellate;
 
 use self::{render::StrokeRenderer, tessellate::StrokeTessellator};
-use super::{space::*, CameraWithScreen};
+use super::{content::StrokeId, space::*, CameraWithScreen};
 use crate::gfx::tessellate::TessellationStore;
 
 use palette::LinSrgb;
@@ -35,8 +35,8 @@ impl StrokeManager {
     self.data = StrokeData::default();
   }
 
-  pub fn update_strokes<'a>(&mut self, strokes: impl IntoIterator<Item = &'a Stroke>) {
-    for stroke in strokes {
+  pub fn update_strokes<'a>(&mut self, strokes: impl Iterator<Item = (StrokeId, &'a Stroke)>) {
+    for (id, stroke) in strokes {
       let tessellation = self.tessellator.tessellate(stroke);
 
       let vertices = tessellation
@@ -49,11 +49,10 @@ impl StrokeManager {
         .chunks(3)
         .map(|c| [c[0], c[1], c[2]])
         .collect();
-
       let trimesh = parry2d::shape::TriMesh::new(vertices, indices);
 
-      self.data.tessellations.insert(stroke.id, tessellation);
-      self.data.parry_meshes.insert(stroke.id, trimesh);
+      self.data.tessellations.insert(id, tessellation);
+      self.data.parry_meshes.insert(id, trimesh);
     }
   }
 
@@ -72,14 +71,6 @@ impl StrokeManager {
   }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
-pub struct StrokeId(pub uuid::Uuid);
-impl Default for StrokeId {
-  fn default() -> Self {
-    Self(uuid::Uuid::new_v4())
-  }
-}
-
 #[derive(Default)]
 pub struct StrokeData {
   pub tessellations: HashMap<StrokeId, TessellationStore<render::Vertex>>,
@@ -88,8 +79,6 @@ pub struct StrokeData {
 
 #[derive(Clone, serde::Serialize, serde::Deserialize)]
 pub struct Stroke {
-  id: StrokeId,
-
   /// at least two points
   points: Vec<CanvasPoint>,
   width_multiplier: f32,
@@ -98,17 +87,11 @@ pub struct Stroke {
 impl Stroke {
   pub fn new(points: Vec<CanvasPoint>, color: LinSrgb, width_multiplier: f32) -> Self {
     assert!(points.len() >= 2);
-    let id = StrokeId::default();
     Self {
-      id,
       points,
       color,
       width_multiplier,
     }
-  }
-
-  pub fn id(&self) -> StrokeId {
-    self.id
   }
 
   pub fn add_point(&mut self, point: CanvasPoint) {

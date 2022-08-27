@@ -1,5 +1,5 @@
 use crate::canvas::{
-  content::{command::AddStrokeCommand, ContentManager},
+  content::{command::AddStrokeCommand, ContentManager, StrokeId},
   space::*,
   stroke::Stroke,
   tool::PenConfig,
@@ -15,8 +15,9 @@ const SAMPLE_DISTANCE_TOLERANCE: ScreenPixelUnit = ScreenPixelUnit::new(1.0);
 
 #[derive(Default)]
 pub struct PenInputHandler {
-  clicked: bool,
+  is_writing: bool,
 
+  stroke: Option<StrokeId>,
   points: Vec<ScreenPixelPoint>,
 }
 
@@ -33,28 +34,18 @@ impl PenInputHandler {
       WindowEvent::CursorMoved { position, .. } => {
         let pos = position.to_logical(window.scale_factor());
         let pos = ScreenPixelPoint::try_from_window_logical(pos, camera_screen);
-        if self.clicked {
+
+        if self.is_writing {
           if let Some(pos) = pos {
-            self.record_sampled_point(
-              pos,
-              &mut content.ongoing().stroke,
-              camera_screen,
-              pen_config,
-            );
+            self.record_sampled_point(pos, content, camera_screen, pen_config);
           }
         }
       }
       WindowEvent::MouseInput { state, button, .. } => {
         if *button == event::MouseButton::Left {
           match state {
-            event::ElementState::Pressed => {
-              self.clicked = true;
-              self.start_stroke();
-            }
-            event::ElementState::Released => {
-              self.clicked = false;
-              self.finish_stroke(content);
-            }
+            event::ElementState::Pressed => self.start_stroke(),
+            event::ElementState::Released => self.finish_stroke(),
           }
         }
       }
@@ -63,13 +54,13 @@ impl PenInputHandler {
   }
 
   fn start_stroke(&mut self) {
-    self.points = Vec::new();
+    self.is_writing = true;
   }
 
   fn record_sampled_point(
     &mut self,
     new_point: ScreenPixelPoint,
-    ongoing_stroke: &mut Option<Stroke>,
+    content: &mut ContentManager,
     camera_screen: &CameraWithScreen,
     pen_config: &PenConfig,
   ) {
@@ -81,18 +72,26 @@ impl PenInputHandler {
         let square_dist = (new_point - last_point).magnitude_squared();
         if square_dist > SAMPLE_DISTANCE_TOLERANCE * SAMPLE_DISTANCE_TOLERANCE {
           self.points.push(new_point);
-          match ongoing_stroke {
+          match self.stroke {
             None => {
               let points = self
                 .points
                 .iter()
                 .map(|p| CanvasPointExt::from_screen(*p, camera_screen))
                 .collect();
-              *ongoing_stroke = Some(Stroke::new(points, pen_config.color, pen_config.width))
+
+              let stroke = Stroke::new(points, pen_config.color, pen_config.width);
+              content.run_cmd(AddStrokeCommand::new(stroke));
+
+              // TODO: find a nicer way to do this.
+              let stroke = content.delta().strokes.added.last().unwrap();
+              self.stroke = Some(*stroke);
             }
-            Some(ongoing_stroke) => {
+            Some(stroke) => {
               self.points.push(new_point);
-              ongoing_stroke.add_point(CanvasPointExt::from_screen(new_point, camera_screen));
+              let mut access_mut = content.access_mut();
+              let stroke = access_mut.modify_stroke(stroke);
+              stroke.add_point(CanvasPointExt::from_screen(new_point, camera_screen));
             }
           }
         }
@@ -100,9 +99,10 @@ impl PenInputHandler {
     }
   }
 
-  fn finish_stroke(&mut self, content: &mut ContentManager) {
-    if let Some(finished_stroke) = content.ongoing().stroke.take() {
-      content.schedule_cmd(Box::new(AddStrokeCommand::new(finished_stroke)));
-    }
+  fn finish_stroke(&mut self) {
+    self.is_writing = false;
+
+    self.stroke = None;
+    self.points.clear();
   }
 }

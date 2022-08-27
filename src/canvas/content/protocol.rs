@@ -2,7 +2,7 @@ use std::f32::consts::TAU;
 
 use serde::{Deserialize, Serialize};
 
-use super::{command::ProtocolCommand, ContentManager};
+use super::{access::ContentAccessMut, command::ProtocolCommand, ContentManager};
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub(super) struct ProtocolNodeId(pub u32);
@@ -81,10 +81,8 @@ impl ProtocolNode {
 struct SentinelCommand;
 #[typetag::serde]
 impl ProtocolCommand for SentinelCommand {
-  fn execute(&mut self, _content: &mut super::PersistentContent) -> Result<(), ()> {
-    Ok(())
-  }
-  fn rollback(&mut self, _content: &mut super::PersistentContent) {}
+  fn execute(&mut self, _: ContentAccessMut) {}
+  fn rollback(&mut self, _: ContentAccessMut) {}
 }
 
 #[derive(Default)]
@@ -131,7 +129,7 @@ impl ProtocolUi {
         if circle.visual_bounding_rect().contains(cursor) {
           circle.fill = egui::Color32::BLUE;
           if response.clicked() {
-            manager.schedule_undo();
+            manager.undo_cmd();
           }
         }
       }
@@ -158,7 +156,7 @@ impl ProtocolUi {
           circle.fill = egui::Color32::BLUE;
           if response.clicked() {
             manager.switch_protocol_branch(i);
-            manager.schedule_redo();
+            manager.redo_cmd();
           }
         }
       }

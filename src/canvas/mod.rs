@@ -55,12 +55,10 @@ impl CanvasManager {
   }
 
   pub fn update(&mut self) {
-    self.content.update();
-
     // TODO: update according to content delta
     self.stroke_manager.clear_strokes();
-    let (persistent, ongoing) = self.content.persistent_ongoing_mut();
-    let strokes = persistent.strokes().values().chain(&ongoing.stroke);
+    let access = self.content.access();
+    let strokes = access.strokes();
     self.stroke_manager.update_strokes(strokes);
   }
 

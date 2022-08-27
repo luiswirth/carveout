@@ -3,10 +3,10 @@ mod pen;
 use self::pen::PenInputHandler;
 
 use super::{
-  content::{command::RemoveStrokeCommand, ContentManager},
+  content::{command::RemoveStrokeCommand, ContentManager, StrokeId},
   gfx::CameraWithScreen,
   space::*,
-  stroke::{StrokeId, StrokeManager},
+  stroke::StrokeManager,
   tool::{ToolConfig, ToolEnum},
 };
 
@@ -75,23 +75,24 @@ impl InputHandler {
           None => return,
         };
         let pos = CanvasPoint::from_screen(pos, camera_screen);
+
+        // TODO: stop iterating through all strokes. Use spatial partitioning.
         let remove_list: Vec<StrokeId> = content
-          .persistent()
+          .access()
           .strokes()
-          .values()
-          .filter(|s| {
+          .map(|(id, _)| id)
+          .filter(|id| {
             let mesh = stroke_manager
               .data()
               .parry_meshes
-              .get(&s.id())
+              .get(id)
               .expect("No parry data.");
             mesh.contains_point(&na::Isometry2::default(), &pos.cast())
           })
-          .map(|s| s.id())
           .collect();
 
         for id in remove_list {
-          content.schedule_cmd(Box::new(RemoveStrokeCommand::new(id)))
+          content.run_cmd(RemoveStrokeCommand::new(id))
         }
       }
 

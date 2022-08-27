@@ -30,13 +30,13 @@ impl SidebarUi {
         ui.horizontal_wrapped(|ui| {
           if ui.button("📂").clicked() {
             if let Some(savefile) = crate::file::load() {
-              *canvas.content_mut().persistent_mut() = savefile.content;
-              *canvas.content_mut().protocol_mut() = savefile.protocol;
+              canvas
+                .content_mut()
+                .replace(savefile.content, savefile.protocol);
             }
           }
           if ui.button("🗄").clicked() {
-            let content = canvas.content().persistent().clone();
-            let protocol = canvas.content().protocol().clone();
+            let (content, protocol) = canvas.content().clone();
             let savefile = crate::file::Savefile { content, protocol };
             crate::file::save(&savefile);
           }
@@ -51,14 +51,14 @@ impl SidebarUi {
           let button = egui::Button::new("⮪");
           let response = ui.add_enabled(undoable, button);
           if undoable && response.clicked() {
-            content.schedule_undo();
+            content.undo_cmd();
           }
 
           let redoable = content.redoable();
           let button = egui::Button::new("⮫");
           let response = ui.add_enabled(redoable, button);
           if redoable && response.clicked() {
-            content.schedule_redo();
+            content.redo_cmd();
           }
         });
 
