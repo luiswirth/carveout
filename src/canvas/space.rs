@@ -1,8 +1,8 @@
-use crate::util::{SpacePoint, SpaceUnit, SpaceVector};
-
 use super::gfx::CameraWithScreen;
 
-/// Space representing the pixelated canvas screen
+use crate::util::{SpacePoint, SpaceUnit, SpaceVector};
+
+/// Space representing the pixelated canvas screen.
 /// One Unit is one logical canvas screen pixel, therefore square.
 /// Origin is top left corner of screen.
 pub struct ScreenPixelSpace;
@@ -10,13 +10,14 @@ pub type ScreenPixelUnit = SpaceUnit<ScreenPixelSpace>;
 pub type ScreenPixelPoint = SpacePoint<ScreenPixelSpace>;
 pub type ScreenPixelVector = SpaceVector<ScreenPixelSpace>;
 
-/// Space representing the normalized canvas screen
-/// One Unit is the whole screen along an axis, therefore not square.
-/// Origin is top left corner of screen.
-pub struct ScreenNormalizedSpace;
-//pub type ScreenNormalizedUnit = SpaceUnit<ScreenNormalizedSpace>;
-//pub type ScreenNormalizedPoint = SpacePoint<ScreenNormalizedSpace>;
-pub type ScreenNormalizedVector = SpaceVector<ScreenNormalizedSpace>;
+/// Space representing the normalized canvas screen.
+/// One Unit is half the screen along an axis, therefore not square.
+/// Origin is the center the of screen.
+/// This is the same as normalized device coordinates or clip space.
+pub struct ScreenNormSpace;
+//pub type ScreenNormUnit = SpaceUnit<ScreenNormSpace>;
+pub type ScreenNormPoint = SpacePoint<ScreenNormSpace>;
+pub type ScreenNormVector = SpaceVector<ScreenNormSpace>;
 
 /// Space representing canvas space.
 pub struct CanvasSpace;
@@ -64,58 +65,140 @@ impl ScreenPixelPointExt for ScreenPixelPoint {
   fn from_canvas(canvas_point: CanvasPoint, camera_screen: &CameraWithScreen) -> Self {
     let canvas_point = canvas_point.cast();
     let view_point = camera_screen
-      .view_transform()
+      .canvas_to_view()
       .transform_point(&canvas_point);
-    let normalized_screen_point = camera_screen.projection().transform_point(&view_point);
-    let screen_point = camera_screen
-      .screen_transform()
-      .transform_point(&normalized_screen_point);
-    screen_point.cast()
+    let screen_norm_point = camera_screen
+      .view_to_screen_norm()
+      .transform_point(&view_point);
+    let screen_pixel_point = camera_screen
+      .screen_norm_to_pixel()
+      .transform_point(&screen_norm_point);
+    screen_pixel_point.cast()
   }
 }
 
-pub trait ScreenNormalizedVectorExt {
-  fn from_pixel(vector: ScreenPixelVector, camera_screen: &CameraWithScreen) -> Self;
+pub trait ScreenPixelVectorExt {
+  fn from_window_logical(point: winit::dpi::LogicalPosition<f64>) -> Self;
+
+  fn from_canvas(canvas_vector: CanvasVector, camera_screen: &CameraWithScreen) -> Self;
 }
-impl ScreenNormalizedVectorExt for ScreenNormalizedVector {
-  fn from_pixel(vector: ScreenPixelVector, camera_screen: &CameraWithScreen) -> Self {
-    let screen_size = camera_screen.screen_rect().size();
-    na::Vector2::new(vector.x.0 / screen_size.x, vector.y.0 / screen_size.y).cast()
+impl ScreenPixelVectorExt for ScreenPixelVector {
+  fn from_window_logical(point: winit::dpi::LogicalPosition<f64>) -> Self {
+    let point = point.cast::<f32>();
+    na::Vector2::new(point.x, point.y).cast()
+  }
+
+  fn from_canvas(canvas_vector: CanvasVector, camera_screen: &CameraWithScreen) -> Self {
+    let canvas_vector = canvas_vector.cast();
+    let view_vector = camera_screen
+      .canvas_to_view()
+      .transform_vector(&canvas_vector);
+    let screen_norm_vector = camera_screen.view_to_screen_norm() * view_vector;
+    let screen_pixel_vector = camera_screen
+      .screen_norm_to_pixel()
+      .transform_vector(&screen_norm_vector);
+    screen_pixel_vector.cast()
+  }
+}
+
+pub trait ScreenNormPointExt {
+  fn from_screen_pixel(
+    screen_pixel_point: ScreenPixelPoint,
+    camera_screen: &CameraWithScreen,
+  ) -> Self;
+}
+impl ScreenNormPointExt for ScreenNormPoint {
+  fn from_screen_pixel(
+    screen_pixel_point: ScreenPixelPoint,
+    camera_screen: &CameraWithScreen,
+  ) -> Self {
+    camera_screen
+      .screen_norm_to_pixel()
+      .inverse_transform_point(&screen_pixel_point.cast())
+      .cast()
+  }
+}
+
+pub trait ScreenNormVectorExt {
+  fn from_screen_pixel(
+    screen_pixel_vector: ScreenPixelVector,
+    camera_screen: &CameraWithScreen,
+  ) -> Self;
+}
+impl ScreenNormVectorExt for ScreenNormVector {
+  fn from_screen_pixel(
+    screen_pixel_vector: ScreenPixelVector,
+    camera_screen: &CameraWithScreen,
+  ) -> Self {
+    camera_screen
+      .screen_norm_to_pixel()
+      .inverse_transform_vector(&screen_pixel_vector.cast())
+      .cast()
   }
 }
 
 pub trait CanvasPointExt {
-  fn from_screen(point: ScreenPixelPoint, camera_screen: &CameraWithScreen) -> Self;
+  fn from_screen_pixel(
+    screen_pixel_point: ScreenPixelPoint,
+    camera_screen: &CameraWithScreen,
+  ) -> Self;
 }
 impl CanvasPointExt for CanvasPoint {
-  fn from_screen(screen_point: ScreenPixelPoint, camera_screen: &CameraWithScreen) -> Self {
-    let screen_point = screen_point.cast();
-    let normalized_screen_point = camera_screen
-      .screen_transform()
-      .inverse_transform_point(&screen_point);
+  fn from_screen_pixel(
+    screen_pixel_point: ScreenPixelPoint,
+    camera_screen: &CameraWithScreen,
+  ) -> Self {
+    let screen_pixel_point = screen_pixel_point.cast();
+    let screen_norm_point = camera_screen
+      .screen_norm_to_pixel()
+      .inverse_transform_point(&screen_pixel_point);
     let view_point = camera_screen
-      .projection()
-      .try_inverse_transform_point(&normalized_screen_point)
+      .view_to_screen_norm()
+      .try_inverse_transform_point(&screen_norm_point)
       .unwrap();
     let canvas_point = camera_screen
-      .view_transform()
+      .canvas_to_view()
       .inverse_transform_point(&view_point);
     canvas_point.cast()
   }
 }
 
 pub trait CanvasVectorExt {
-  fn from_screen(screen_vector: ScreenPixelVector, cavnas_gfx: &CameraWithScreen) -> Self;
+  fn from_screen_pixel(
+    screen_pixel_vector: ScreenPixelVector,
+    camera_screen: &CameraWithScreen,
+  ) -> Self;
+  fn from_screen_norm(
+    screen_norm_vector: ScreenNormVector,
+    camera_screen: &CameraWithScreen,
+  ) -> Self;
 }
 impl CanvasVectorExt for CanvasVector {
-  fn from_screen(screen_vector: ScreenPixelVector, camera_screen: &CameraWithScreen) -> Self {
-    let screen_vector = screen_vector.cast();
-    let normalized_screen_vector = camera_screen
-      .screen_transform()
-      .inverse_transform_vector(&screen_vector);
-    let view_vector = camera_screen.projection().try_inverse().unwrap() * normalized_screen_vector;
+  fn from_screen_pixel(
+    screen_pixel_vector: ScreenPixelVector,
+    camera_screen: &CameraWithScreen,
+  ) -> Self {
+    let screen_pixel_vector = screen_pixel_vector.cast();
+    let screen_norm_vector = camera_screen
+      .screen_norm_to_pixel()
+      .inverse_transform_vector(&screen_pixel_vector);
+    let view_vector =
+      camera_screen.view_to_screen_norm().try_inverse().unwrap() * screen_norm_vector;
     let canvas_vector = camera_screen
-      .view_transform()
+      .canvas_to_view()
+      .inverse_transform_vector(&view_vector);
+    canvas_vector.cast()
+  }
+
+  fn from_screen_norm(
+    screen_norm_vector: ScreenNormVector,
+    camera_screen: &CameraWithScreen,
+  ) -> Self {
+    let screen_norm_vector = screen_norm_vector.cast();
+    let view_vector =
+      camera_screen.view_to_screen_norm().try_inverse().unwrap() * screen_norm_vector;
+    let canvas_vector = camera_screen
+      .canvas_to_view()
       .inverse_transform_vector(&view_vector);
     canvas_vector.cast()
   }

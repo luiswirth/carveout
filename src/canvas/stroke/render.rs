@@ -107,8 +107,8 @@ impl StrokeRenderer {
     camera_screen: &CameraWithScreen,
     tessellated_strokes: impl IntoIterator<Item = &'a mut TessellationStore<Vertex>>,
   ) {
-    let view: na::Transform2<f32> = na::convert(camera_screen.view_transform());
-    let projection: na::Transform2<f32> = na::convert(camera_screen.projection());
+    let view: na::Transform2<f32> = na::convert(camera_screen.canvas_to_view());
+    let projection: na::Transform2<f32> = na::convert(camera_screen.view_to_screen_norm());
     let view_projection = projection * view;
     let view_projection = view_projection.to_homogeneous();
     let camera_uniform = CameraUniform { view_projection };

@@ -44,22 +44,22 @@ impl CanvasManager {
   }
 
   pub fn handle_event(&mut self, event: &crate::Event, window: &winit::window::Window) {
-    self.input_handler.handle_event(
-      event,
-      window,
-      &mut self.content,
-      &self.stroke_manager,
-      &mut self.camera_screen,
-      &self.tool_config,
-    );
+    self
+      .input_handler
+      .handle_event(event, window, &mut self.camera_screen);
   }
 
   pub fn update(&mut self) {
+    self.input_handler.update(
+      &self.tool_config,
+      &mut self.content,
+      &self.stroke_manager,
+      &mut self.camera_screen,
+    );
+
     let access = self.content.access();
     let delta = self.content.delta();
-
     self.stroke_manager.update_strokes(access, &delta.strokes);
-
     self.content.clear_delta();
   }
 

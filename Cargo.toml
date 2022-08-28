@@ -5,15 +5,14 @@ authors = ["Luis Wirth <lwirth2000@gmail.com>"]
 edition = "2021"
 
 [dependencies]
-winit = "0.26.1"
+winit = "0.27.2"
 wgpu = { version = "0.13.1", features = [ "spirv" ] }
 
-egui = { git = "https://github.com/emilk/egui" }
-egui-wgpu = { git = "https://github.com/emilk/egui" }
-egui-winit = { git = "https://github.com/emilk/egui" }
+egui = "0.19.0"
+egui-wgpu = "0.19.0"
+egui-winit = "0.19.0"
 
-#lyon = "1.0.0"
-lyon = { git = "https://github.com/lu15w1r7h/lyon" }
+lyon = "1.0.0"
 palette = { version = "0.6.0", features = [ "serializing" ] }
 
 nalgebra = { version = "0.31.1", features = [ "bytemuck", "serde-serialize" ] }

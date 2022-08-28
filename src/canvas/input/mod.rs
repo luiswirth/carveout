@@ -1,29 +1,33 @@
-mod pen;
+mod state;
 
-use self::pen::PenInputHandler;
+mod eraser;
+mod pen;
+mod rotate_tool;
+mod scale_tool;
+mod translate_tool;
+
+use self::{
+  eraser::update_eraser, rotate_tool::update_rotate_tool, scale_tool::update_scale_tool,
+  state::InputState, translate_tool::update_translate_tool,
+};
 
 use super::{
-  content::{command::RemoveStrokeCommand, ContentManager, StrokeId},
+  content::ContentManager,
   gfx::CameraWithScreen,
-  space::*,
+  space::{CanvasVector, CanvasVectorExt, ScreenNormVector},
   stroke::StrokeManager,
   tool::{ToolConfig, ToolEnum},
 };
 
 use crate::Event;
 
-use parry2d::query::PointQuery;
-use winit::{
-  event::{ElementState, MouseButton, MouseScrollDelta, WindowEvent},
-  window::Window,
-};
+use winit::event::VirtualKeyCode;
 
 #[derive(Default)]
 pub struct InputHandler {
-  pen_handler: PenInputHandler,
-  mouse_clicked: bool,
-  click_cursor_pos: Option<ScreenPixelPoint>,
-  last_cursor_pos: Option<ScreenPixelPoint>,
+  state: InputState,
+
+  pen_handler: self::pen::PenInputHandler,
 }
 
 impl InputHandler {
@@ -31,271 +35,127 @@ impl InputHandler {
     &mut self,
     event: &Event,
     window: &winit::window::Window,
-    content: &mut ContentManager,
-    stroke_manager: &StrokeManager,
     camera_screen: &mut CameraWithScreen,
-    tool_config: &ToolConfig,
   ) {
     if let Event::WindowEvent { event, window_id } = event {
       assert_eq!(*window_id, window.id());
-
-      match tool_config.selected {
-        ToolEnum::Pen => {
-          self
-            .pen_handler
-            .handle_event(event, window, content, camera_screen, &tool_config.pen)
-        }
-        ToolEnum::Eraser => {
-          self.handle_eraser_tool_event(event, window, content, camera_screen, stroke_manager)
-        }
-        ToolEnum::Translate => self.handle_translate_tool_event(event, window, camera_screen),
-        ToolEnum::Rotate => self.handle_rotate_tool_event(event, window, camera_screen),
-        ToolEnum::Scale => self.handle_scale_tool_event(event, window, camera_screen),
-      }
-      self.handle_scale_event(event, window, camera_screen);
+      self.state.handle_event(event, window, camera_screen);
     }
   }
 
-  pub fn handle_eraser_tool_event(
+  pub fn update(
     &mut self,
-    event: &WindowEvent,
-    window: &Window,
+    tool_config: &ToolConfig,
     content: &mut ContentManager,
-    camera_screen: &mut CameraWithScreen,
     stroke_manager: &StrokeManager,
-  ) {
-    match event {
-      WindowEvent::CursorMoved { position, .. } => {
-        if !self.mouse_clicked {
-          return;
-        }
-        let pos = position.to_logical(window.scale_factor());
-        let pos = match ScreenPixelPoint::try_from_window_logical(pos, camera_screen) {
-          Some(p) => p,
-          None => return,
-        };
-        let pos = CanvasPoint::from_screen(pos, camera_screen);
-
-        // TODO: stop iterating through all strokes. Use spatial partitioning.
-        let remove_list: Vec<StrokeId> = content
-          .access()
-          .strokes()
-          .map(|(id, _)| id)
-          .filter(|id| {
-            let mesh = stroke_manager
-              .data()
-              .parry_meshes
-              .get(id)
-              .expect("No parry data.");
-            mesh.contains_point(&na::Isometry2::default(), &pos.cast())
-          })
-          .collect();
-
-        for id in remove_list {
-          content.run_cmd(RemoveStrokeCommand::new(id))
-        }
-      }
-
-      WindowEvent::MouseInput { state, button, .. } => {
-        if *button == MouseButton::Left {
-          match state {
-            ElementState::Pressed => self.mouse_clicked = true,
-            ElementState::Released => self.mouse_clicked = false,
-          }
-        }
-      }
-      _ => {}
-    }
-  }
-
-  fn handle_scale_event(
-    &mut self,
-    event: &WindowEvent,
-    window: &Window,
     camera_screen: &mut CameraWithScreen,
   ) {
-    match event {
-      WindowEvent::CursorMoved { position, .. } => {
-        let pos = position.to_logical(window.scale_factor());
-        let pos = match ScreenPixelPoint::try_from_window_logical(pos, camera_screen) {
-          Some(p) => p,
-          None => return,
-        };
-        self.last_cursor_pos = Some(pos);
+    match tool_config.selected {
+      ToolEnum::Pen => {
+        self
+          .pen_handler
+          .update(&self.state, content, &tool_config.pen, camera_screen)
       }
-      WindowEvent::MouseWheel { delta, .. } => {
-        let scale_factor = match delta {
-          MouseScrollDelta::LineDelta(_x, y) => 1.0 + y / 100.0,
-          MouseScrollDelta::PixelDelta(_) => unimplemented!(),
-        };
-        match self.last_cursor_pos {
-          Some(cursor_pos) => {
-            let center = CanvasPoint::from_screen(cursor_pos, camera_screen);
-            camera_screen
-              .camera_mut()
-              .scale_with_center(scale_factor, center);
-          }
-          None => {}
-        }
-      }
-      _ => {}
+      ToolEnum::Eraser => update_eraser(&self.state, content, stroke_manager),
+      ToolEnum::Translate => update_translate_tool(&self.state, camera_screen),
+      ToolEnum::Rotate => update_rotate_tool(&self.state, camera_screen),
+      ToolEnum::Scale => update_scale_tool(&self.state, camera_screen),
     }
+
+    Self::movement_key(&self.state, camera_screen);
+    Self::movement_mouse(&self.state, camera_screen);
+
+    self.state.update(camera_screen);
   }
 
-  pub fn handle_translate_tool_event(
-    &mut self,
-    event: &WindowEvent,
-    window: &Window,
-    camera_screen: &mut CameraWithScreen,
-  ) {
-    match event {
-      WindowEvent::CursorMoved { position, .. } => {
-        if !self.mouse_clicked {
-          return;
-        }
-        let pos = position.to_logical(window.scale_factor());
-        let pos = match ScreenPixelPoint::try_from_window_logical(pos, camera_screen) {
-          Some(p) => p,
-          None => return,
-        };
-
-        match self.last_cursor_pos {
-          None => self.last_cursor_pos = Some(pos),
-          Some(last_pos) => {
-            let diff = pos - last_pos;
-            let diff = CanvasVector::from_screen(diff, camera_screen);
-            camera_screen.camera_mut().position -= diff;
-            self.last_cursor_pos = Some(pos);
-          }
-        }
-      }
-      WindowEvent::MouseInput { state, button, .. } => {
-        if *button == MouseButton::Left {
-          match state {
-            ElementState::Pressed => {
-              self.mouse_clicked = true;
-              self.last_cursor_pos = None;
-            }
-            ElementState::Released => {
-              self.mouse_clicked = false;
-              self.last_cursor_pos = None;
-            }
-          }
-        }
-      }
-      _ => {}
+  fn movement_key(input: &InputState, camera_screen: &mut CameraWithScreen) {
+    let mut translation = ScreenNormVector::zeros();
+    const TRANSLATION_SPEED: f32 = 1.0 / 25.0;
+    if input.is_pressed(VirtualKeyCode::W) {
+      translation.y += TRANSLATION_SPEED.into();
     }
+    if input.is_pressed(VirtualKeyCode::A) {
+      translation.x += TRANSLATION_SPEED.into();
+    }
+    if input.is_pressed(VirtualKeyCode::S) {
+      translation.y -= TRANSLATION_SPEED.into();
+    }
+    if input.is_pressed(VirtualKeyCode::D) {
+      translation.x -= TRANSLATION_SPEED.into();
+    }
+
+    let mut angle = 0.0;
+    const ROTATION_SPEED: f32 = 0.05;
+    if input.is_pressed(VirtualKeyCode::Q) {
+      angle += ROTATION_SPEED;
+    }
+    if input.is_pressed(VirtualKeyCode::E) {
+      angle -= ROTATION_SPEED;
+    }
+
+    let mut scale = 1.0;
+    const SCALE_SPEED: f32 = 0.01;
+    if input.is_pressed(VirtualKeyCode::Space) {
+      scale -= SCALE_SPEED;
+    }
+    if input.is_pressed(VirtualKeyCode::LShift) {
+      scale += SCALE_SPEED;
+    }
+
+    if translation != ScreenNormVector::zeros() {
+      let translation = CanvasVector::from_screen_norm(translation, camera_screen);
+      camera_screen.camera_mut().position -= translation;
+    }
+    camera_screen.camera_mut().angle += angle;
+    camera_screen.camera_mut().scale *= scale;
   }
 
-  pub fn handle_rotate_tool_event(
-    &mut self,
-    event: &WindowEvent,
-    window: &Window,
-    camera_screen: &mut CameraWithScreen,
-  ) {
-    match event {
-      WindowEvent::CursorMoved { position, .. } => {
-        if !self.mouse_clicked {
-          return;
-        }
-        let pos = position.to_logical(window.scale_factor());
-        let pos = match ScreenPixelPoint::try_from_window_logical(pos, camera_screen) {
-          Some(p) => p,
-          None => return,
-        };
-
-        if self.click_cursor_pos.is_none() {
-          self.click_cursor_pos = Some(pos);
-        }
-
-        match self.last_cursor_pos {
-          None => self.last_cursor_pos = Some(pos),
-          Some(last_pos) => {
-            let diff = pos - last_pos;
-            let diff = ScreenNormalizedVector::from_pixel(diff, camera_screen);
-            let rotation = diff.x.0 * std::f32::consts::TAU;
-
-            let center = CanvasPoint::from_screen(self.click_cursor_pos.unwrap(), camera_screen);
-            camera_screen
-              .camera_mut()
-              .rotate_with_center(rotation, center);
-
-            self.last_cursor_pos = Some(pos);
-          }
-        }
-      }
-      WindowEvent::MouseInput { state, button, .. } => {
-        if *button == MouseButton::Left {
-          match state {
-            ElementState::Pressed => {
-              self.mouse_clicked = true;
-              self.last_cursor_pos = None;
-            }
-            ElementState::Released => {
-              self.mouse_clicked = false;
-              self.last_cursor_pos = None;
-              self.click_cursor_pos = None;
-            }
-          }
-        }
-      }
-      _ => {}
+  fn movement_mouse(input: &InputState, camera_screen: &mut CameraWithScreen) {
+    enum ScrollMeaning {
+      Translation,
+      Rotation,
+      Scale,
     }
-  }
+    let meaning = if input.is_pressed(VirtualKeyCode::LControl) {
+      ScrollMeaning::Scale
+    } else if input.is_pressed(VirtualKeyCode::LAlt) {
+      ScrollMeaning::Rotation
+    } else {
+      ScrollMeaning::Translation
+    };
 
-  pub fn handle_scale_tool_event(
-    &mut self,
-    event: &WindowEvent,
-    window: &Window,
-    camera_screen: &mut CameraWithScreen,
-  ) {
-    match event {
-      WindowEvent::CursorMoved { position, .. } => {
-        if !self.mouse_clicked {
-          return;
-        }
-        let pos = position.to_logical(window.scale_factor());
-        let pos = match ScreenPixelPoint::try_from_window_logical(pos, camera_screen) {
-          Some(p) => p,
-          None => return,
-        };
+    let mut translation = ScreenNormVector::zeros();
+    let mut angle = 0.0;
+    let mut scale = 1.0;
 
-        if self.click_cursor_pos.is_none() {
-          self.click_cursor_pos = Some(pos);
-        }
-
-        match self.last_cursor_pos {
-          None => self.last_cursor_pos = Some(pos),
-          Some(last_pos) => {
-            let diff = pos - last_pos;
-            let diff = ScreenNormalizedVector::from_pixel(diff, camera_screen);
-            let scale_factor = 1.0 + diff.y.0;
-
-            let center = CanvasPoint::from_screen(self.click_cursor_pos.unwrap(), camera_screen);
-            camera_screen
-              .camera_mut()
-              .scale_with_center(scale_factor, center);
-
-            self.last_cursor_pos = Some(pos);
-          }
+    match meaning {
+      ScrollMeaning::Translation => {
+        const TRANSLATION_SPEED: f32 = 5.0;
+        if let Some(scroll_delta) = &input.mouse_scroll_delta {
+          translation += scroll_delta.screen_norm.scale(TRANSLATION_SPEED.into());
         }
       }
-      WindowEvent::MouseInput { state, button, .. } => {
-        if *button == MouseButton::Left {
-          match state {
-            ElementState::Pressed => {
-              self.mouse_clicked = true;
-              self.last_cursor_pos = None;
-            }
-            ElementState::Released => {
-              self.mouse_clicked = false;
-              self.last_cursor_pos = None;
-              self.click_cursor_pos = None;
-            }
-          }
+      ScrollMeaning::Rotation => {
+        const ROTATION_SPEED: f32 = 10.0;
+        if let Some(scroll_delta) = &input.mouse_scroll_delta {
+          angle += scroll_delta.screen_norm.y.0 * ROTATION_SPEED;
         }
       }
-      _ => {}
+      ScrollMeaning::Scale => {
+        const SCALE_SPEED: f32 = 3.0;
+        if let Some(scroll_delta) = &input.mouse_scroll_delta {
+          scale += scroll_delta.screen_norm.y.0 * SCALE_SPEED;
+        }
+      }
+    }
+
+    if translation != ScreenNormVector::zeros() {
+      let translation = CanvasVector::from_screen_norm(translation, camera_screen);
+      camera_screen.camera_mut().position -= translation;
+    }
+    if let Some(cursor) = &input.curr.cursor_pos {
+      camera_screen.rotate_with_center(angle, cursor.screen_pixel);
+      camera_screen.scale_with_center(scale, cursor.screen_pixel);
     }
   }
 }

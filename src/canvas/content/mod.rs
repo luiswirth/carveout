@@ -97,6 +97,14 @@ impl ContentManager {
   }
 
   pub fn replace(&mut self, content: Content, protocol: Protocol) {
+    self.delta.strokes.removed = self
+      .content
+      .strokes
+      .iter()
+      .map(|(id, _)| StrokeId(id))
+      .collect();
+    self.delta.strokes.added = content.strokes.iter().map(|(id, _)| StrokeId(id)).collect();
+
     self.content = content;
     self.protocol = protocol;
   }

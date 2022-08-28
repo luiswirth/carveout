@@ -1,108 +1,77 @@
+use super::state::InputState;
+
 use crate::canvas::{
   content::{command::AddStrokeCommand, ContentManager, StrokeId},
+  gfx::CameraWithScreen,
   space::*,
   stroke::Stroke,
   tool::PenConfig,
-  CameraWithScreen,
 };
 
-use winit::{
-  event::{self, WindowEvent},
-  window::Window,
-};
+use winit::event::MouseButton;
 
-const SAMPLE_DISTANCE_TOLERANCE: ScreenPixelUnit = ScreenPixelUnit::new(1.0);
+const TOLERANCE: ScreenPixelUnit = ScreenPixelUnit::new(1.0);
 
 #[derive(Default)]
 pub struct PenInputHandler {
-  is_writing: bool,
-
+  prev_point: Option<CanvasPoint>,
   stroke: Option<StrokeId>,
-  points: Vec<ScreenPixelPoint>,
 }
 
 impl PenInputHandler {
-  pub fn handle_event(
+  pub fn update(
     &mut self,
-    event: &WindowEvent,
-    window: &Window,
+    input: &InputState,
     content: &mut ContentManager,
-    camera_screen: &CameraWithScreen,
     pen_config: &PenConfig,
+    camera_screen: &CameraWithScreen,
   ) {
-    match event {
-      WindowEvent::CursorMoved { position, .. } => {
-        let pos = position.to_logical(window.scale_factor());
-        let pos = ScreenPixelPoint::try_from_window_logical(pos, camera_screen);
-
-        if self.is_writing {
-          if let Some(pos) = pos {
-            self.record_sampled_point(pos, content, camera_screen, pen_config);
-          }
-        }
-      }
-      WindowEvent::MouseInput { state, button, .. } => {
-        if *button == event::MouseButton::Left {
-          match state {
-            event::ElementState::Pressed => self.start_stroke(),
-            event::ElementState::Released => self.finish_stroke(),
-          }
-        }
-      }
-      _ => {}
+    if input.got_unclicked(MouseButton::Left) {
+      self.finish_stroke()
+    }
+    if input.is_clicked(MouseButton::Left) {
+      self.sample_stroke(input, content, pen_config, camera_screen)
     }
   }
 
-  fn start_stroke(&mut self) {
-    self.is_writing = true;
-  }
-
-  fn record_sampled_point(
+  fn sample_stroke(
     &mut self,
-    new_point: ScreenPixelPoint,
+    input: &InputState,
     content: &mut ContentManager,
-    camera_screen: &CameraWithScreen,
     pen_config: &PenConfig,
+    camera_screen: &CameraWithScreen,
   ) {
-    match self.points.last() {
-      None => {
-        self.points.push(new_point);
-      }
-      Some(last_point) => {
-        let square_dist = (new_point - last_point).magnitude_squared();
-        if square_dist > SAMPLE_DISTANCE_TOLERANCE * SAMPLE_DISTANCE_TOLERANCE {
-          self.points.push(new_point);
+    if let Some(curr_point) = input.curr.cursor_pos.as_ref().map(|c| c.canvas) {
+      if let Some(prev_point) = self.prev_point {
+        let diff = curr_point - prev_point;
+        let diff = ScreenPixelVector::from_canvas(diff, camera_screen);
+        let dist = diff.magnitude_squared();
+        if dist > TOLERANCE * TOLERANCE {
           match self.stroke {
             None => {
-              let points = self
-                .points
-                .iter()
-                .map(|p| CanvasPointExt::from_screen(*p, camera_screen))
-                .collect();
-
+              let points = vec![prev_point, curr_point];
               let stroke = Stroke::new(points, pen_config.color, pen_config.width);
               content.run_cmd(AddStrokeCommand::new(stroke));
 
-              // TODO: find a nicer way to do this.
               let stroke = content.delta().strokes.added.last().unwrap();
               self.stroke = Some(*stroke);
             }
             Some(stroke) => {
-              self.points.push(new_point);
               let mut access_mut = content.access_mut();
               let stroke = access_mut.modify_stroke(stroke);
-              stroke.add_point(CanvasPointExt::from_screen(new_point, camera_screen));
+              stroke.add_point(curr_point);
             }
           }
+          self.prev_point = Some(curr_point);
         }
+      } else {
+        self.prev_point = Some(curr_point);
       }
     }
   }
 
   fn finish_stroke(&mut self) {
-    self.is_writing = false;
-
+    self.prev_point = None;
     self.stroke = None;
-    self.points.clear();
   }
 }

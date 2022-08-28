@@ -66,7 +66,7 @@ pub struct WgpuCtx {
 
 impl WgpuCtx {
   pub async fn init(window: &winit::window::Window) -> Self {
-    let instance = wgpu::Instance::new(wgpu::Backends::all());
+    let instance = wgpu::Instance::new(wgpu::Backends::PRIMARY);
     let surface = unsafe { instance.create_surface(window) };
     let adapter = instance
       .request_adapter(&wgpu::RequestAdapterOptions {
