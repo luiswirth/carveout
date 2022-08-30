@@ -1,8 +1,10 @@
-use crate::{canvas::gfx::CameraWithScreen, gfx::tessellate::TessellationStore};
+use crate::canvas::gfx::CameraWithScreen;
 
 use encase::UniformBuffer;
-use palette::LinSrgba;
 use std::mem;
+use wgpu::util::DeviceExt;
+
+use super::StrokeMesh;
 
 /// Renders the drawed lines
 pub struct StrokeRenderer {
@@ -64,7 +66,7 @@ impl StrokeRenderer {
       vertex: wgpu::VertexState {
         module: &shader,
         entry_point: "vs_main",
-        buffers: &[Vertex::vertex_buffer_layout()],
+        buffers: &[StrokeVertex::vertex_buffer_layout()],
       },
       primitive: wgpu::PrimitiveState {
         topology: wgpu::PrimitiveTopology::TriangleList,
@@ -105,7 +107,7 @@ impl StrokeRenderer {
     queue: &wgpu::Queue,
     encoder: &mut wgpu::CommandEncoder,
     camera_screen: &CameraWithScreen,
-    tessellated_strokes: impl IntoIterator<Item = &'a mut TessellationStore<Vertex>>,
+    meshes: impl Iterator<Item = (&'a StrokeMesh, &'a mut Option<StrokeMeshGpu>)>,
   ) {
     let view: na::Transform2<f32> = na::convert(camera_screen.canvas_to_view());
     let projection: na::Transform2<f32> = na::convert(camera_screen.view_to_screen_norm());
@@ -135,8 +137,11 @@ impl StrokeRenderer {
     pass.set_pipeline(&self.pipeline);
     pass.set_bind_group(0, &self.bind_group, &[]);
 
-    for stroke in tessellated_strokes {
-      stroke.render(device, queue, &mut pass);
+    for (mesh, mesh_gpu) in meshes {
+      let mesh_gpu = mesh_gpu.get_or_insert(StrokeMeshGpu::new(mesh, device));
+      pass.set_vertex_buffer(0, mesh_gpu.vertex_buffer.slice(..));
+      pass.set_index_buffer(mesh_gpu.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
+      pass.draw_indexed(0..(u32::try_from(mesh.indices.len()).unwrap()), 0, 0..1);
     }
   }
 }
@@ -148,28 +153,45 @@ struct CameraUniform {
 
 #[repr(C)]
 #[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
-pub struct Vertex {
+pub struct StrokeVertex {
   pub position: [f32; 2],
   pub normal: [f32; 2],
   pub stroke_width: f32,
   pub color: [f32; 4],
 }
 
-impl Vertex {
+impl StrokeVertex {
   const LAYOUT_ATTRIBUTES: [wgpu::VertexAttribute; 4] =
     wgpu::vertex_attr_array![0 => Float32x2, 1 => Float32x2, 2 => Float32, 3 => Float32x4];
 
   fn vertex_buffer_layout<'a>() -> wgpu::VertexBufferLayout<'a> {
     wgpu::VertexBufferLayout {
-      array_stride: mem::size_of::<Vertex>() as wgpu::BufferAddress,
+      array_stride: mem::size_of::<StrokeVertex>() as wgpu::BufferAddress,
       step_mode: wgpu::VertexStepMode::Vertex,
       attributes: &Self::LAYOUT_ATTRIBUTES,
     }
   }
 }
 
-#[derive(Copy, Clone)]
-pub struct VertexConstructor {
-  pub width_multiplier: f32,
-  pub color: LinSrgba,
+pub struct StrokeMeshGpu {
+  vertex_buffer: wgpu::Buffer,
+  index_buffer: wgpu::Buffer,
+}
+impl StrokeMeshGpu {
+  pub fn new(stroke_mesh: &StrokeMesh, device: &wgpu::Device) -> Self {
+    let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+      label: Some("stroke_mesh_vertices"),
+      contents: bytemuck::cast_slice(&stroke_mesh.vertices),
+      usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+    });
+    let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+      label: Some("stroke_mesh_indicies"),
+      contents: bytemuck::cast_slice(&stroke_mesh.indices),
+      usage: wgpu::BufferUsages::INDEX | wgpu::BufferUsages::COPY_DST,
+    });
+    Self {
+      vertex_buffer,
+      index_buffer,
+    }
+  }
 }

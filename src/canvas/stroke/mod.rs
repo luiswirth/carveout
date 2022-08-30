@@ -1,7 +1,10 @@
 mod render;
 mod tessellate;
 
-use self::{render::StrokeRenderer, tessellate::StrokeTessellator};
+use self::{
+  render::{StrokeMeshGpu, StrokeRenderer, StrokeVertex},
+  tessellate::StrokeTessellator,
+};
 use super::{
   content::{
     access::{ContentAccess, StrokeDelta},
@@ -10,10 +13,11 @@ use super::{
   space::*,
   CameraWithScreen,
 };
-use crate::gfx::tessellate::TessellationStore;
 
 use palette::LinSrgb;
 use std::collections::HashMap;
+
+pub type StrokeMesh = lyon::lyon_tessellation::VertexBuffers<StrokeVertex, u32>;
 
 pub struct StrokeManager {
   data: StrokeData,
@@ -47,26 +51,18 @@ impl StrokeManager {
 
     for stroke_id in need_update {
       let stroke = content.stroke(stroke_id);
-      let tessellation = self.tessellator.tessellate(stroke);
+      let mesh = self.tessellator.tessellate(stroke);
 
-      let vertices = tessellation
-        .vertices
-        .iter()
-        .map(|v| v.position.into())
-        .collect();
-      let indices = tessellation
-        .indices
-        .chunks(3)
-        .map(|c| [c[0], c[1], c[2]])
-        .collect();
+      let vertices = mesh.vertices.iter().map(|v| v.position.into()).collect();
+      let indices = mesh.indices.chunks(3).map(|c| [c[0], c[1], c[2]]).collect();
       let trimesh = parry2d::shape::TriMesh::new(vertices, indices);
 
-      self.data.tessellations.insert(stroke_id, tessellation);
+      self.data.meshes.insert(stroke_id, (mesh, None));
       self.data.parry_meshes.insert(stroke_id, trimesh);
     }
 
     for stroke_id in stroke_delta.removed.iter() {
-      self.data.tessellations.remove(stroke_id);
+      self.data.meshes.remove(stroke_id);
       self.data.parry_meshes.remove(stroke_id);
     }
   }
@@ -78,17 +74,21 @@ impl StrokeManager {
     encoder: &mut wgpu::CommandEncoder,
     camera_screen: &CameraWithScreen,
   ) {
-    let stores = self.data.tessellations.values_mut();
+    let meshes = self
+      .data
+      .meshes
+      .iter_mut()
+      .map(|(_, (mesh, mesh_gpu))| (mesh as &StrokeMesh, mesh_gpu));
 
     self
       .renderer
-      .render(device, queue, encoder, camera_screen, stores);
+      .render(device, queue, encoder, camera_screen, meshes);
   }
 }
 
 #[derive(Default)]
 pub struct StrokeData {
-  pub tessellations: HashMap<StrokeId, TessellationStore<render::Vertex>>,
+  pub meshes: HashMap<StrokeId, (StrokeMesh, Option<StrokeMeshGpu>)>,
   pub parry_meshes: HashMap<StrokeId, parry2d::shape::TriMesh>,
 }
 

@@ -1,6 +1,3 @@
-pub mod tessellate;
-pub mod util;
-
 pub const STANDARD_TEXTURE_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Bgra8UnormSrgb;
 
 pub struct Gfx {
