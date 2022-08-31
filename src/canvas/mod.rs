@@ -49,7 +49,7 @@ impl CanvasManager {
       .handle_event(event, window, &mut self.camera_screen);
   }
 
-  pub fn update(&mut self) {
+  pub fn update(&mut self, device: &wgpu::Device) {
     self.input_handler.update(
       &self.tool_config,
       &mut self.content,
@@ -59,19 +59,16 @@ impl CanvasManager {
 
     let access = self.content.access();
     let delta = self.content.delta();
-    self.stroke_manager.update_strokes(access, &delta.strokes);
+    self
+      .stroke_manager
+      .update_strokes(access, &delta.strokes, device);
     self.content.clear_delta();
   }
 
-  pub fn render(
-    &mut self,
-    device: &wgpu::Device,
-    queue: &wgpu::Queue,
-    encoder: &mut wgpu::CommandEncoder,
-  ) {
+  pub fn render(&mut self, queue: &wgpu::Queue, encoder: &mut wgpu::CommandEncoder) {
     self
       .stroke_manager
-      .render(device, queue, encoder, &self.camera_screen);
+      .render(queue, encoder, &self.camera_screen);
   }
 
   pub fn content(&self) -> &ContentManager {

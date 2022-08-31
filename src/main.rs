@@ -99,12 +99,12 @@ impl Application {
   }
 
   fn update(&mut self) {
-    self.canvas.update();
+    self.canvas.update(self.gfx.wgpu().device());
   }
 
   fn render(&mut self) {
     self.gfx.render(|wgpu, encoder, render_target| {
-      self.canvas.render(wgpu.device(), wgpu.queue(), encoder);
+      self.canvas.render(wgpu.queue(), encoder);
 
       self.ui.render(
         &self.window,

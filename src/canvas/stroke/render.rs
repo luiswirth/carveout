@@ -1,12 +1,8 @@
 use crate::canvas::gfx::CameraWithScreen;
 
-use encase::UniformBuffer;
+use encase::{ShaderType, UniformBuffer};
 use std::mem;
-use wgpu::util::DeviceExt;
 
-use super::StrokeMesh;
-
-/// Renders the drawed lines
 pub struct StrokeRenderer {
   pipeline: wgpu::RenderPipeline,
   bind_group: wgpu::BindGroup,
@@ -15,10 +11,10 @@ pub struct StrokeRenderer {
 
 impl StrokeRenderer {
   pub fn init(device: &wgpu::Device) -> Self {
-    let camera_ubo_size = 48;
+    let camera_ubo_size = CameraUniform::min_size();
     let camera_ubo = device.create_buffer(&wgpu::BufferDescriptor {
       label: Some("stroke_renderer_camera_ubo"),
-      size: camera_ubo_size,
+      size: camera_ubo_size.into(),
       usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
       mapped_at_creation: false,
     });
@@ -33,14 +29,14 @@ impl StrokeRenderer {
         ty: wgpu::BindingType::Buffer {
           ty: wgpu::BufferBindingType::Uniform,
           has_dynamic_offset: false,
-          min_binding_size: wgpu::BufferSize::new(camera_ubo_size),
+          min_binding_size: Some(camera_ubo_size),
         },
         count: None,
       }],
     });
 
     let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-      label: Some("stroke_renderer_bing_group"),
+      label: Some("stroke_renderer_bind_group"),
       layout: &bind_group_layout,
       entries: &[wgpu::BindGroupEntry {
         binding: 0,
@@ -103,11 +99,10 @@ impl StrokeRenderer {
 
   pub fn render<'a>(
     &mut self,
-    device: &wgpu::Device,
     queue: &wgpu::Queue,
     encoder: &mut wgpu::CommandEncoder,
     camera_screen: &CameraWithScreen,
-    meshes: impl Iterator<Item = (&'a StrokeMesh, &'a mut Option<StrokeMeshGpu>)>,
+    meshes: impl Iterator<Item = &'a mut StrokeMeshGpu>,
   ) {
     let view: na::Transform2<f32> = na::convert(camera_screen.canvas_to_view());
     let projection: na::Transform2<f32> = na::convert(camera_screen.view_to_screen_norm());
@@ -121,8 +116,8 @@ impl StrokeRenderer {
     queue.write_buffer(&self.camera_ubo, 0, &byte_buffer);
 
     let view = camera_screen.render_target();
-    let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-      label: Some("stroke render pass"),
+    let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+      label: Some("stroke_render_pass"),
       color_attachments: &[Some(wgpu::RenderPassColorAttachment {
         view: &view,
         ops: wgpu::Operations {
@@ -134,22 +129,22 @@ impl StrokeRenderer {
       depth_stencil_attachment: None,
     });
 
-    pass.set_pipeline(&self.pipeline);
-    pass.set_bind_group(0, &self.bind_group, &[]);
+    render_pass.set_pipeline(&self.pipeline);
+    render_pass.set_bind_group(0, &self.bind_group, &[]);
 
-    for (mesh, mesh_gpu) in meshes {
-      let mesh_gpu = mesh_gpu.get_or_insert(StrokeMeshGpu::new(mesh, device));
-      pass.set_vertex_buffer(0, mesh_gpu.vertex_buffer.slice(..));
-      pass.set_index_buffer(mesh_gpu.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
-      pass.draw_indexed(0..(u32::try_from(mesh.indices.len()).unwrap()), 0, 0..1);
+    for mesh in meshes {
+      mesh.draw(&mut render_pass);
     }
   }
 }
 
-#[derive(encase::ShaderType)]
+#[derive(ShaderType)]
 struct CameraUniform {
   view_projection: na::Matrix3<f32>,
 }
+
+pub type StrokeMeshCpu = crate::canvas::gfx::MeshCpu<StrokeVertex>;
+pub type StrokeMeshGpu = crate::canvas::gfx::MeshGpu;
 
 #[repr(C)]
 #[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
@@ -169,29 +164,6 @@ impl StrokeVertex {
       array_stride: mem::size_of::<StrokeVertex>() as wgpu::BufferAddress,
       step_mode: wgpu::VertexStepMode::Vertex,
       attributes: &Self::LAYOUT_ATTRIBUTES,
-    }
-  }
-}
-
-pub struct StrokeMeshGpu {
-  vertex_buffer: wgpu::Buffer,
-  index_buffer: wgpu::Buffer,
-}
-impl StrokeMeshGpu {
-  pub fn new(stroke_mesh: &StrokeMesh, device: &wgpu::Device) -> Self {
-    let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-      label: Some("stroke_mesh_vertices"),
-      contents: bytemuck::cast_slice(&stroke_mesh.vertices),
-      usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
-    });
-    let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-      label: Some("stroke_mesh_indicies"),
-      contents: bytemuck::cast_slice(&stroke_mesh.indices),
-      usage: wgpu::BufferUsages::INDEX | wgpu::BufferUsages::COPY_DST,
-    });
-    Self {
-      vertex_buffer,
-      index_buffer,
     }
   }
 }

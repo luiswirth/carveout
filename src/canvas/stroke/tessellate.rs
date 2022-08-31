@@ -1,5 +1,8 @@
-use super::{render::StrokeVertex, Stroke, StrokeMesh};
-use crate::util;
+use super::{
+  render::{StrokeMeshCpu, StrokeVertex},
+  Stroke,
+};
+use crate::{canvas::gfx::Tessellation, util};
 
 use lyon::{
   lyon_tessellation::{BuffersBuilder, StrokeVertex as LyonStrokeVertex},
@@ -21,7 +24,7 @@ impl StrokeTessellator {
     Self { tessellator }
   }
 
-  pub fn tessellate(&mut self, stroke: &Stroke) -> StrokeMesh {
+  pub fn tessellate(&mut self, stroke: &Stroke) -> StrokeMeshCpu {
     let mut points = stroke
       .points
       .iter()
@@ -40,7 +43,7 @@ impl StrokeTessellator {
       .with_line_cap(LineCap::Round)
       .with_variable_line_width(STROKE_WIDTH_ATTRIBUTE);
 
-    let mut mesh = StrokeMesh::new();
+    let mut mesh = Tessellation::new();
     self
       .tessellator
       .tessellate_path(
@@ -54,6 +57,6 @@ impl StrokeTessellator {
         }),
       )
       .unwrap();
-    mesh
+    StrokeMeshCpu::from_tessellation(mesh)
   }
 }
