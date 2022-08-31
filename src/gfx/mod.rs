@@ -14,11 +14,6 @@ impl Gfx {
   where
     F: FnOnce(&WgpuCtx, &mut wgpu::CommandEncoder, &wgpu::TextureView),
   {
-    let mut encoder = self
-      .wgpu
-      .device
-      .create_command_encoder(&wgpu::CommandEncoderDescriptor::default());
-
     let surface_texture = match self.wgpu.surface.get_current_texture() {
       Ok(frame) => frame,
       Err(wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated) => {
@@ -38,6 +33,11 @@ impl Gfx {
     let render_target = &surface_texture
       .texture
       .create_view(&wgpu::TextureViewDescriptor::default());
+
+    let mut encoder = self
+      .wgpu
+      .device
+      .create_command_encoder(&wgpu::CommandEncoderDescriptor::default());
 
     render_function(&self.wgpu, &mut encoder, render_target);
 

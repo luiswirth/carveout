@@ -83,7 +83,7 @@ impl StrokeManager {
     encoder: &mut wgpu::CommandEncoder,
     camera_screen: &CameraWithScreen,
   ) {
-    let meshes = self.data.meshes.iter_mut().map(|(_, mesh)| mesh);
+    let meshes = self.data.meshes.iter().map(|(_, mesh)| mesh);
     self.renderer.render(queue, encoder, camera_screen, meshes);
   }
 }

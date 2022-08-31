@@ -19,8 +19,6 @@ impl StrokeRenderer {
       mapped_at_creation: false,
     });
 
-    let shader = device.create_shader_module(wgpu::include_wgsl!("shader.wgsl"));
-
     let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
       label: Some("stroke_renderer_bind_group_layout"),
       entries: &[wgpu::BindGroupLayoutEntry {
@@ -55,6 +53,8 @@ impl StrokeRenderer {
       blend: Some(wgpu::BlendState::REPLACE),
       write_mask: wgpu::ColorWrites::ALL,
     })];
+
+    let shader = device.create_shader_module(wgpu::include_wgsl!("shader.wgsl"));
 
     let pipeline_descriptor = wgpu::RenderPipelineDescriptor {
       label: Some("stroke_render_pipeline"),
@@ -102,7 +102,7 @@ impl StrokeRenderer {
     queue: &wgpu::Queue,
     encoder: &mut wgpu::CommandEncoder,
     camera_screen: &CameraWithScreen,
-    meshes: impl Iterator<Item = &'a mut StrokeMeshGpu>,
+    meshes: impl Iterator<Item = &'a StrokeMeshGpu>,
   ) {
     let view: na::Transform2<f32> = na::convert(camera_screen.canvas_to_view());
     let projection: na::Transform2<f32> = na::convert(camera_screen.view_to_screen_norm());

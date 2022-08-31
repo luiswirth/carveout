@@ -1,4 +1,4 @@
-use super::space::{CanvasPoint, ScreenPixelPoint};
+use super::space::{CanvasPoint, CanvasPointExt, ScreenPixelPoint};
 
 use crate::ui::CanvasScreen;
 
@@ -60,13 +60,22 @@ impl CameraWithScreen {
   }
 }
 impl CameraWithScreen {
-  pub fn rotate_with_center(&mut self, angle: f32, _center: ScreenPixelPoint) {
-    // TODO: update `self.camera.position` using `center`
+  pub fn rotate_with_center(&mut self, angle: f32, center: ScreenPixelPoint) {
+    let center = CanvasPoint::from_screen_pixel(center, self);
+    let mut vector = self.camera.position - center;
+    let rotation = na::Rotation2::new(angle);
+    vector = rotation.transform_vector(&vector.cast()).cast();
+
+    self.camera.position = center + vector;
     self.camera.angle = (self.camera.angle + angle).rem_euclid(std::f32::consts::TAU);
   }
 
-  pub fn scale_with_center(&mut self, scale: f32, _center: ScreenPixelPoint) {
-    // TODO: update `self.camera.position` using `center`
+  pub fn scale_with_center(&mut self, scale: f32, center: ScreenPixelPoint) {
+    let center = CanvasPoint::from_screen_pixel(center, self);
+    let mut vector = self.camera.position - center;
+    vector.scale_mut((1.0 / scale).into());
+
+    self.camera.position = center + vector;
     self.camera.scale *= scale;
   }
 }
