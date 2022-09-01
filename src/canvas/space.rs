@@ -1,3 +1,5 @@
+use winit::window::Window;
+
 use super::gfx::CameraWithScreen;
 
 use crate::util::{SpacePoint, SpaceUnit, SpaceVector};
@@ -29,17 +31,20 @@ pub trait ScreenPixelPointExt
 where
   Self: Sized,
 {
+  fn is_in_screen(&self, camera_screen: &CameraWithScreen) -> bool;
+
   fn from_window_logical(
     point: winit::dpi::LogicalPosition<f64>,
     camera_screen: &CameraWithScreen,
   ) -> Self;
-  fn try_from_window_logical(
-    point: winit::dpi::LogicalPosition<f64>,
-    camera_screen: &CameraWithScreen,
-  ) -> Option<Self>;
   fn from_canvas(point: CanvasPoint, camera_screen: &CameraWithScreen) -> Self;
 }
 impl ScreenPixelPointExt for ScreenPixelPoint {
+  fn is_in_screen(&self, camera_screen: &CameraWithScreen) -> bool {
+    let size = camera_screen.screen_rect().size();
+    self.x.0 >= 0.0 && self.y.0 >= 0.0 && self.x.0 < size.x && self.y.0 < size.y
+  }
+
   fn from_window_logical(
     point: winit::dpi::LogicalPosition<f64>,
     camera_screen: &CameraWithScreen,
@@ -47,19 +52,6 @@ impl ScreenPixelPointExt for ScreenPixelPoint {
     let point = point.cast::<f32>();
     let screen_min = camera_screen.screen_rect().min;
     na::Point2::new(point.x - screen_min.x, point.y - screen_min.y).cast()
-  }
-
-  fn try_from_window_logical(
-    point: winit::dpi::LogicalPosition<f64>,
-    camera_screen: &CameraWithScreen,
-  ) -> Option<Self> {
-    match camera_screen
-      .screen_rect()
-      .contains(egui::Pos2::new(point.x as f32, point.y as f32))
-    {
-      true => Some(Self::from_window_logical(point, camera_screen)),
-      false => None,
-    }
   }
 
   fn from_canvas(canvas_point: CanvasPoint, camera_screen: &CameraWithScreen) -> Self {
@@ -201,5 +193,61 @@ impl CanvasVectorExt for CanvasVector {
       .canvas_to_view()
       .inverse_transform_vector(&view_vector);
     canvas_vector.cast()
+  }
+}
+
+#[derive(Clone, Debug)]
+pub struct PointInSpaces {
+  pub screen_pixel: ScreenPixelPoint,
+  pub screen_norm: ScreenNormPoint,
+  pub canvas: CanvasPoint,
+  pub in_screen: bool,
+}
+impl PointInSpaces {
+  pub fn from_window_physical(
+    window_physical: winit::dpi::PhysicalPosition<f64>,
+    window: &Window,
+    camera_screen: &CameraWithScreen,
+  ) -> Self {
+    let window_logical = window_physical.to_logical(window.scale_factor());
+    let screen_pixel = ScreenPixelPoint::from_window_logical(window_logical, camera_screen);
+    Self::from_screen_pixel(screen_pixel, camera_screen)
+  }
+
+  pub fn from_screen_pixel(
+    screen_pixel: ScreenPixelPoint,
+    camera_screen: &CameraWithScreen,
+  ) -> Self {
+    let screen_norm = ScreenNormPoint::from_screen_pixel(screen_pixel, camera_screen);
+    let canvas = CanvasPoint::from_screen_pixel(screen_pixel, camera_screen);
+    let in_screen = screen_pixel.is_in_screen(camera_screen);
+
+    Self {
+      screen_pixel,
+      screen_norm,
+      canvas,
+      in_screen,
+    }
+  }
+}
+
+#[derive(Clone, Debug)]
+pub struct VectorInSpaces {
+  pub screen_pixel: ScreenPixelVector,
+  pub screen_norm: ScreenNormVector,
+  pub canvas: CanvasVector,
+}
+impl VectorInSpaces {
+  pub fn from_screen_pixel(
+    screen_pixel: ScreenPixelVector,
+    camera_screen: &CameraWithScreen,
+  ) -> Self {
+    let screen_norm = ScreenNormVector::from_screen_pixel(screen_pixel, camera_screen);
+    let canvas = CanvasVector::from_screen_pixel(screen_pixel, camera_screen);
+    Self {
+      screen_pixel,
+      screen_norm,
+      canvas,
+    }
   }
 }

@@ -43,6 +43,10 @@ impl CanvasManager {
     }
   }
 
+  pub fn reset(&mut self) {
+    self.input_handler.reset();
+  }
+
   pub fn handle_event(&mut self, event: &crate::Event, window: &winit::window::Window) {
     self
       .input_handler

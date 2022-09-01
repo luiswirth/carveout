@@ -70,14 +70,12 @@ impl Application {
     self.canvas.handle_event(&event, &self.window);
 
     match event {
-      Event::NewEvents(_) => {}
+      Event::NewEvents(_) => self.reset(),
       Event::MainEventsCleared => {
         self.update();
         self.window.request_redraw();
       }
-      Event::RedrawRequested(_) => {
-        self.render();
-      }
+      Event::RedrawRequested(_) => self.render(),
       Event::WindowEvent { event, .. } => match event {
         WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit,
         WindowEvent::Resized(new_size) => self.gfx.resize([new_size.width, new_size.height]),
@@ -96,6 +94,10 @@ impl Application {
 
       _ => {}
     }
+  }
+
+  fn reset(&mut self) {
+    self.canvas.reset();
   }
 
   fn update(&mut self) {

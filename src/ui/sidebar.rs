@@ -62,9 +62,9 @@ impl SidebarUi {
           }
         });
 
-        ui.checkbox(&mut self.protocol_tree_enabled, "Protocol Tree Visualizer");
+        ui.checkbox(&mut self.protocol_tree_enabled, "Show Protocol");
         if self.protocol_tree_enabled {
-          egui::Window::new("Protocol Tree Visualizer")
+          egui::Window::new("Protocol")
             .collapsible(false)
             .resizable(false)
             .show(ui.ctx(), |ui| self.protocol_ui.ui(ui, content));

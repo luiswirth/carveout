@@ -88,6 +88,7 @@ impl StrokeManager {
   }
 }
 
+// TODO: consider using a BTreeMap instead of a HashMap
 #[derive(Default)]
 pub struct StrokeData {
   pub meshes: HashMap<StrokeId, StrokeMeshGpu>,

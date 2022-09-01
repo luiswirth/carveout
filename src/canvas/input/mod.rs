@@ -31,6 +31,10 @@ pub struct InputHandler {
 }
 
 impl InputHandler {
+  pub fn reset(&mut self) {
+    self.state.reset();
+  }
+
   pub fn handle_event(
     &mut self,
     event: &Event,
@@ -64,6 +68,7 @@ impl InputHandler {
 
     Self::movement_key(&self.state, camera_screen);
     Self::movement_mouse(&self.state, camera_screen);
+    Self::movement_touch(&self.state, camera_screen);
 
     self.state.update(camera_screen);
   }
@@ -156,6 +161,14 @@ impl InputHandler {
     if let Some(cursor) = &input.curr.cursor_pos {
       camera_screen.rotate_with_center(angle, cursor.screen_pixel);
       camera_screen.scale_with_center(scale, cursor.screen_pixel);
+    }
+  }
+
+  fn movement_touch(input: &InputState, camera_screen: &mut CameraWithScreen) {
+    if let Some(movement) = &input.multi_touch_movement {
+      camera_screen.camera_mut().position -= movement.translation.canvas;
+      camera_screen.rotate_with_center(-movement.rotation, movement.center.screen_pixel);
+      camera_screen.scale_with_center(movement.scale, movement.center.screen_pixel);
     }
   }
 }
