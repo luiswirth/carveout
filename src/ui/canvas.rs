@@ -1,6 +1,8 @@
 use std::{cell::RefCell, rc::Rc};
 
-use super::render_target::UiRenderTarget;
+use crate::canvas::CanvasManager;
+
+use super::{overlay::ui_overlay, render_target::UiRenderTarget};
 
 pub struct CanvasUi {
   screen: Rc<RefCell<CanvasScreen>>,
@@ -26,6 +28,7 @@ impl CanvasUi {
     ctx: &egui::Context,
     device: &wgpu::Device,
     ui_renderer: &mut super::backend::Renderer,
+    canvas_manager: &mut CanvasManager,
   ) {
     egui::CentralPanel::default().show(ctx, |ui| {
       let mut screen = self.screen.borrow_mut();
@@ -34,6 +37,8 @@ impl CanvasUi {
         .ui(ui, device, ui_renderer, ui.available_size());
       screen.rect = response.rect;
       self.has_focus = response.hovered();
+
+      ui_overlay(ctx, screen.rect, canvas_manager);
     });
   }
 

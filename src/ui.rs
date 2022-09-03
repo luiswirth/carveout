@@ -2,6 +2,7 @@ mod backend;
 mod render_target;
 
 mod canvas;
+mod overlay;
 mod sidebar;
 
 pub use self::canvas::CanvasScreen;
@@ -53,7 +54,7 @@ impl Ui {
       wgpu::LoadOp::Clear(wgpu::Color::BLACK),
       |ctx, renderer| {
         self.sidebar.ui(ctx, canvas_manager);
-        self.canvas.ui(ctx, device, renderer);
+        self.canvas.ui(ctx, device, renderer, canvas_manager);
       },
     );
   }
