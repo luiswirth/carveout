@@ -1,65 +1,35 @@
-mod backend;
-mod render_target;
-
 mod canvas;
 mod overlay;
 mod sidebar;
 
-pub use self::canvas::CanvasScreen;
-
-use self::{backend::Backend, canvas::CanvasUi, sidebar::SidebarUi};
+use self::{canvas::CanvasUi, sidebar::SidebarUi};
 
 pub struct Ui {
-  backend: Backend,
-
   sidebar: SidebarUi,
   canvas: CanvasUi,
 }
 
 impl Ui {
-  pub fn init(event_loop: &crate::EventLoop, device: &wgpu::Device) -> Self {
-    let mut backend = Backend::new(event_loop, device);
-
+  pub fn init() -> Self {
     let sidebar = SidebarUi::init();
-    let canvas = CanvasUi::init(device, backend.renderer_mut());
+    let canvas = CanvasUi::init();
 
-    Self {
-      backend,
-
-      sidebar,
-      canvas,
-    }
+    Self { sidebar, canvas }
   }
 
-  pub fn handle_event(&mut self, event: &crate::Event) -> bool {
-    self.backend.handle_event(event)
-  }
-
-  pub fn render(
-    &mut self,
-    window: &crate::Window,
-    device: &wgpu::Device,
-    queue: &wgpu::Queue,
-    encoder: &mut wgpu::CommandEncoder,
-    surface_view: &wgpu::TextureView,
-
-    canvas_manager: &mut crate::CanvasManager,
-  ) {
-    self.backend.render(
-      window,
-      device,
-      queue,
-      encoder,
-      surface_view,
-      wgpu::LoadOp::Clear(wgpu::Color::BLACK),
-      |ctx, renderer| {
-        self.sidebar.ui(ctx, canvas_manager);
-        self.canvas.ui(ctx, device, renderer, canvas_manager);
-      },
-    );
+  pub fn run(&mut self, ctx: &egui::Context, mut ui_access: UiAccess) {
+    self.sidebar.ui(ctx, &mut ui_access);
+    self.canvas.ui(ctx, &mut ui_access);
   }
 
   pub fn canvas(&self) -> &CanvasUi {
     &self.canvas
   }
+}
+
+pub struct UiAccess<'a> {
+  pub content_manager: &'a mut crate::ContentManager,
+  pub camera: &'a mut crate::Camera,
+  pub tool_config: &'a mut crate::ToolConfig,
+  pub stroke_manager: &'a mut crate::StrokeManager,
 }

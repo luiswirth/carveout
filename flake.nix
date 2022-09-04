@@ -1,5 +1,5 @@
 {
-  description = "arcus";
+  description = "carveout";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -22,29 +22,30 @@
       in
       with pkgs;
       {
+        formatter = nixpkgs-fmt;
+
         devShells.default = mkShell rec {
           buildInputs = [
+            rust-toolchain
+            rust-analyzer
+            bacon
+
             pkgconfig
-                
+            clang
+            mold
+            zlib
+
             vulkan-loader
             vulkan-validation-layers
             libxkbcommon
             wayland
-                
-            freetype
-            expat
-            fontconfig
-            gdk-pixbuf
-            gtk3
-            gsettings-desktop-schemas
 
-            rust-toolchain
-            rust-analyzer
-            bacon
+            freetype
+            fontconfig
+            expat
           ];
           VK_LAYER_PATH = "${pkgs.vulkan-validation-layers}/share/vulkan/explicit_layer.d";
-          LD_LIBRARY_PATH = "${lib.makeLibraryPath buildInputs}";                
-          XDG_DATA_DIRS= "${gsettings-desktop-schemas}/share/gsettings-schemas/${gsettings-desktop-schemas.name}:${gtk3}/share/gsettings-schemas/${gtk3.name}";
+          LD_LIBRARY_PATH = "${lib.makeLibraryPath buildInputs}";
         };
       }
     );

@@ -1,6 +1,6 @@
 use super::{Content, StrokeId};
 
-use crate::canvas::stroke::Stroke;
+use crate::stroke::Stroke;
 
 pub struct ContentAccess<'a> {
   pub(super) content: &'a Content,

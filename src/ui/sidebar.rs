@@ -1,11 +1,15 @@
-use crate::canvas::{content::protocol::ProtocolUi, tool::ToolEnum, CanvasManager};
+use super::UiAccess;
 
+use crate::{content::protocol::ProtocolUi, file, tool::ToolEnum, util};
+
+use egui_file::FileDialog;
 use palette::{FromColor, Hsv, IntoColor};
 
 pub struct SidebarUi {
   rainbow_mode: bool,
   protocol_ui: ProtocolUi,
   protocol_tree_enabled: bool,
+  file_dialog: Option<FileDialog>,
 }
 
 impl SidebarUi {
@@ -14,10 +18,32 @@ impl SidebarUi {
       rainbow_mode: false,
       protocol_ui: ProtocolUi::default(),
       protocol_tree_enabled: false,
+      file_dialog: None,
     }
   }
 
-  pub fn ui(&mut self, ctx: &egui::Context, canvas: &mut CanvasManager) {
+  pub fn ui(&mut self, ctx: &egui::Context, ui_access: &mut UiAccess) {
+    if let Some(file_dialog) = &mut self.file_dialog {
+      file_dialog.show(ctx);
+      if file_dialog.selected() {
+        let file_path = file_dialog.path().unwrap();
+        match file_dialog.dialog_type() {
+          egui_file::DialogType::OpenFile => {
+            let savefile = file::load(&file_path);
+            ui_access
+              .content_manager
+              .replace(savefile.content, savefile.protocol);
+          }
+          egui_file::DialogType::SaveFile => {
+            let (content, protocol) = ui_access.content_manager.clone();
+            let savefile = file::Savefile { content, protocol };
+            file::save(&savefile, file_path);
+          }
+          _ => {}
+        }
+      }
+    }
+
     egui::SidePanel::left("toolbox_panel").show(ctx, |ui| {
       ui.add_space(10.0);
       ui.add(egui::Label::new(
@@ -29,23 +55,23 @@ impl SidebarUi {
         ui.label("File");
         ui.horizontal_wrapped(|ui| {
           if ui.button("📂").clicked() {
-            if let Some(savefile) = crate::file::load() {
-              canvas
-                .content_mut()
-                .replace(savefile.content, savefile.protocol);
-            }
+            let mut file_dialog =
+              FileDialog::open_file(Some(util::USER_DIRS.home_dir().to_owned()));
+            file_dialog.open();
+            self.file_dialog = Some(file_dialog);
           }
           if ui.button("🗄").clicked() {
-            let (content, protocol) = canvas.content().clone();
-            let savefile = crate::file::Savefile { content, protocol };
-            crate::file::save(&savefile);
+            let mut file_dialog =
+              FileDialog::save_file(Some(util::USER_DIRS.home_dir().to_owned()));
+            file_dialog.open();
+            self.file_dialog = Some(file_dialog);
           }
         });
       });
 
       ui.group(|ui| {
         ui.label("Undo");
-        let content = canvas.content_mut();
+        let content = &mut ui_access.content_manager;
         ui.horizontal_wrapped(|ui| {
           let undoable = content.undoable();
           let button = egui::Button::new("⮪");
@@ -73,7 +99,7 @@ impl SidebarUi {
 
       ui.group(|ui| {
         ui.label("Tools");
-        let selected = &mut canvas.tool_config_mut().selected;
+        let selected = &mut ui_access.tool_config.selected;
 
         ui.horizontal_wrapped(|ui| {
           selectable_tool(ui, selected, ToolEnum::Pen, "✏");
@@ -86,7 +112,7 @@ impl SidebarUi {
         ui.separator();
         match selected {
           ToolEnum::Pen => {
-            let mut pen = &mut canvas.tool_config_mut().pen;
+            let mut pen = &mut ui_access.tool_config.pen;
 
             ui.label("Pen color");
             let color = pen.color.into_components();
@@ -108,7 +134,7 @@ impl SidebarUi {
           }
           ToolEnum::Translate => {
             ui.label("Translate option");
-            let position = &mut canvas.camera_screen_mut().camera_mut().position;
+            let position = &mut ui_access.camera.position;
             ui.horizontal(|ui| {
               const SPEED: f32 = 0.001;
               ui.colored_label(egui::Color32::RED, "X:");
@@ -119,16 +145,16 @@ impl SidebarUi {
           }
           ToolEnum::Rotate => {
             ui.label("Rotate option");
-            let rotation = &mut canvas.camera_screen_mut().camera_mut().angle;
+            let rotation = &mut ui_access.camera.angle;
             ui.add(egui::Slider::new(rotation, 0.0..=std::f32::consts::TAU));
           }
           ToolEnum::Scale => {
             ui.label("Scale options");
-            let scale = &mut canvas.camera_screen_mut().camera_mut().scale;
+            let zoom = &mut ui_access.camera.zoom;
             const SPEED_MUL: f32 = 0.003;
-            let speed = *scale * SPEED_MUL;
+            let speed = *zoom * SPEED_MUL;
             ui.add(
-              egui::DragValue::new(scale)
+              egui::DragValue::new(zoom)
                 .clamp_range(0.1..=10.0)
                 .speed(speed),
             );

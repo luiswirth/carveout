@@ -1,8 +1,6 @@
-use super::{
-  render::{StrokeMeshCpu, StrokeVertex},
-  Stroke,
-};
-use crate::{canvas::gfx::Tessellation, util};
+use super::render::{StrokeMeshCpu, StrokeVertex};
+
+use crate::{gfx::mesh::Tessellation, stroke::Stroke, util};
 
 use lyon::{
   lyon_tessellation::{BuffersBuilder, StrokeVertex as LyonStrokeVertex},
@@ -26,7 +24,7 @@ impl StrokeTessellator {
 
   pub fn tessellate(&mut self, stroke: &Stroke) -> StrokeMeshCpu {
     let mut points = stroke
-      .points
+      .points()
       .iter()
       .map(|p| lyon::geom::Point::new(p.x.0, p.y.0));
     let mut builder = Path::builder_with_attributes(1);
@@ -52,8 +50,8 @@ impl StrokeTessellator {
         &mut BuffersBuilder::new(&mut mesh, |mut vertex: LyonStrokeVertex| StrokeVertex {
           position: vertex.position_on_path().to_array(),
           normal: vertex.normal().to_array(),
-          stroke_width: vertex.interpolated_attributes()[0] * stroke.width_multiplier,
-          color: util::tuple2array4(LinSrgba::from(stroke.color).into_components()),
+          stroke_width: vertex.interpolated_attributes()[0] * stroke.width_multiplier(),
+          color: util::tuple2array4(LinSrgba::from(stroke.color()).into_components()),
         }),
       )
       .unwrap();

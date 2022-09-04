@@ -11,17 +11,15 @@ use self::{
   state::InputState, translate_tool::update_translate_tool,
 };
 
-use super::{
+use crate::{
+  camera::Camera,
   content::ContentManager,
-  gfx::CameraWithScreen,
-  space::{CanvasVector, CanvasVectorExt, ScreenNormVector},
+  spaces::{CanvasVector, CanvasVectorExt, ScreenNormVector},
   stroke::StrokeManager,
   tool::{ToolConfig, ToolEnum},
 };
 
-use crate::Event;
-
-use winit::event::VirtualKeyCode;
+use winit::event::{VirtualKeyCode, WindowEvent};
 
 #[derive(Default)]
 pub struct InputHandler {
@@ -37,14 +35,11 @@ impl InputHandler {
 
   pub fn handle_event(
     &mut self,
-    event: &Event,
+    event: &WindowEvent,
     window: &winit::window::Window,
-    camera_screen: &mut CameraWithScreen,
+    camera_screen: &mut Camera,
   ) {
-    if let Event::WindowEvent { event, window_id } = event {
-      assert_eq!(*window_id, window.id());
-      self.state.handle_event(event, window, camera_screen);
-    }
+    self.state.handle_event(event, window, camera_screen);
   }
 
   pub fn update(
@@ -52,7 +47,7 @@ impl InputHandler {
     tool_config: &ToolConfig,
     content: &mut ContentManager,
     stroke_manager: &StrokeManager,
-    camera_screen: &mut CameraWithScreen,
+    camera_screen: &mut Camera,
   ) {
     match tool_config.selected {
       ToolEnum::Pen => {
@@ -73,7 +68,7 @@ impl InputHandler {
     self.state.update(camera_screen);
   }
 
-  fn movement_key(input: &InputState, camera_screen: &mut CameraWithScreen) {
+  fn movement_key(input: &InputState, camera_screen: &mut Camera) {
     let mut translation = ScreenNormVector::zeros();
     const TRANSLATION_SPEED: f32 = 1.0 / 25.0;
     if input.is_pressed(VirtualKeyCode::W) {
@@ -109,13 +104,13 @@ impl InputHandler {
 
     if translation != ScreenNormVector::zeros() {
       let translation = CanvasVector::from_screen_norm(translation, camera_screen);
-      camera_screen.camera_mut().position -= translation;
+      camera_screen.position -= translation;
     }
-    camera_screen.camera_mut().angle += angle;
-    camera_screen.camera_mut().scale *= scale;
+    camera_screen.angle += angle;
+    camera_screen.zoom *= scale;
   }
 
-  fn movement_mouse(input: &InputState, camera_screen: &mut CameraWithScreen) {
+  fn movement_mouse(input: &InputState, camera_screen: &mut Camera) {
     enum ScrollMeaning {
       Translation,
       Rotation,
@@ -156,19 +151,19 @@ impl InputHandler {
 
     if translation != ScreenNormVector::zeros() {
       let translation = CanvasVector::from_screen_norm(translation, camera_screen);
-      camera_screen.camera_mut().position -= translation;
+      camera_screen.position -= translation;
     }
     if let Some(cursor) = &input.curr.cursor_pos {
       camera_screen.rotate_with_center(angle, cursor.screen_pixel);
-      camera_screen.scale_with_center(scale, cursor.screen_pixel);
+      camera_screen.zoom_with_center(scale, cursor.screen_pixel);
     }
   }
 
-  fn movement_touch(input: &InputState, camera_screen: &mut CameraWithScreen) {
+  fn movement_touch(input: &InputState, camera_screen: &mut Camera) {
     if let Some(movement) = &input.multi_touch_movement {
-      camera_screen.camera_mut().position -= movement.translation.canvas;
+      camera_screen.position -= movement.translation.canvas;
       camera_screen.rotate_with_center(-movement.rotation, movement.center.screen_pixel);
-      camera_screen.scale_with_center(movement.scale, movement.center.screen_pixel);
+      camera_screen.zoom_with_center(movement.scale, movement.center.screen_pixel);
     }
   }
 }

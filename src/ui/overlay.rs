@@ -1,17 +1,18 @@
-use crate::canvas::CanvasManager;
+use super::UiAccess;
 
-pub fn ui_overlay(ctx: &egui::Context, rect: egui::Rect, canvas_manager: &mut CanvasManager) {
+pub fn ui_overlay(ctx: &egui::Context, ui_access: &mut UiAccess) {
+  let screen = ui_access.camera.viewport;
   let layer_id = egui::LayerId::new(egui::Order::Background, egui::Id::new("canvas_ui_overlay"));
-  let ui = egui::Ui::new(ctx.clone(), layer_id, layer_id.id, rect, rect);
+  let ui = egui::Ui::new(ctx.clone(), layer_id, layer_id.id, screen, screen);
 
   let painter = ui.painter();
 
   let width = 3.0;
-  let direction = -canvas_manager.camera_screen_mut().camera_mut().angle;
+  let direction = -ui_access.camera.angle;
   let direction = egui::Vec2::angled(direction);
   let length = 50.0;
 
-  let anchor = rect.min + egui::Vec2::splat(20.0) + egui::Vec2::splat(length);
+  let anchor = screen.min + egui::Vec2::splat(20.0) + egui::Vec2::splat(length);
 
   arrow(
     painter,

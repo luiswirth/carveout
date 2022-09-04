@@ -1,9 +1,9 @@
 use super::state::InputState;
 
-use crate::canvas::{
+use crate::{
+  camera::Camera,
   content::{command::AddStrokeCommand, ContentManager, StrokeId},
-  gfx::CameraWithScreen,
-  space::*,
+  spaces::*,
   stroke::Stroke,
   tool::PenConfig,
 };
@@ -24,7 +24,7 @@ impl PenInputHandler {
     input: &InputState,
     content: &mut ContentManager,
     pen_config: &PenConfig,
-    camera_screen: &CameraWithScreen,
+    camera_screen: &Camera,
   ) {
     if input.got_unclicked(MouseButton::Left) {
       self.finish_stroke()
@@ -39,7 +39,7 @@ impl PenInputHandler {
     input: &InputState,
     content: &mut ContentManager,
     pen_config: &PenConfig,
-    camera_screen: &CameraWithScreen,
+    camera_screen: &Camera,
   ) {
     if let Some(curr_point) = input.curr.cursor_pos.as_ref().map(|c| c.canvas) {
       if let Some(prev_point) = self.prev_point {

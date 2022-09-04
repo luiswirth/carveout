@@ -1,8 +1,7 @@
-use std::f32::consts::TAU;
+use super::{access::ContentAccessMut, command::ProtocolCommand, ContentManager};
 
 use serde::{Deserialize, Serialize};
-
-use super::{access::ContentAccessMut, command::ProtocolCommand, ContentManager};
+use std::f32::consts::TAU;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub(super) struct ProtocolNodeId(pub u32);

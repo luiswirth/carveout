@@ -1,12 +1,12 @@
-use super::{access::ContentAccessMut, StrokeId};
+use crate::stroke::Stroke;
 
-use crate::canvas::stroke::Stroke;
+use super::{access::ContentAccessMut, StrokeId};
 
 use dyn_clone::DynClone;
 use serde::{Deserialize, Serialize};
 
 #[typetag::serde(tag = "type", content = "value")]
-pub trait ProtocolCommand: DynClone {
+pub trait ProtocolCommand: DynClone + Send + Sync {
   fn execute(&mut self, content: ContentAccessMut);
   fn rollback(&mut self, content: ContentAccessMut);
 }

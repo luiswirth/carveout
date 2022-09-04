@@ -1,11 +1,11 @@
-use parry2d::query::PointQuery;
+use super::state::InputState;
 
-use crate::canvas::{
+use crate::{
   content::{command::RemoveStrokeCommand, ContentManager, StrokeId},
   stroke::StrokeManager,
 };
 
-use super::state::InputState;
+use parry2d::query::PointQuery;
 
 pub fn update_eraser(
   input: &InputState,
@@ -16,17 +16,14 @@ pub fn update_eraser(
     return;
   }
   if let Some(pos) = input.curr.cursor_pos.as_ref().map(|c| c.canvas) {
+    let stroke_data = stroke_manager.data();
     // TODO: stop iterating through all strokes. Use spatial partitioning.
     let remove_list: Vec<StrokeId> = content
       .access()
       .strokes()
       .map(|(id, _)| id)
       .filter(|id| {
-        let mesh = stroke_manager
-          .data()
-          .parry_meshes
-          .get(id)
-          .expect("No parry data.");
+        let mesh = stroke_data.parry_meshes.get(id).expect("No parry data.");
         mesh.contains_point(&na::Isometry2::default(), &pos.cast())
       })
       .collect();

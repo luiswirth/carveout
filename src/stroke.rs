@@ -1,17 +1,10 @@
-mod render;
-mod tessellate;
-
-use self::{
-  render::{StrokeMeshGpu, StrokeRenderer},
-  tessellate::StrokeTessellator,
-};
-use super::{
+use crate::{
   content::{
     access::{ContentAccess, StrokeDelta},
     StrokeId,
   },
-  space::*,
-  CameraWithScreen,
+  gfx::stroke::{StrokeMeshGpu, StrokeTessellator},
+  spaces::*,
 };
 
 use palette::LinSrgb;
@@ -20,20 +13,14 @@ use std::collections::HashMap;
 pub struct StrokeManager {
   data: StrokeData,
   tessellator: StrokeTessellator,
-  renderer: StrokeRenderer,
 }
 
 impl StrokeManager {
-  pub fn init(device: &wgpu::Device) -> Self {
+  pub fn init() -> Self {
     let data = StrokeData::default();
     let tessellator = StrokeTessellator::init();
-    let renderer = StrokeRenderer::init(device);
 
-    Self {
-      data,
-      tessellator,
-      renderer,
-    }
+    Self { data, tessellator }
   }
 
   pub fn data(&self) -> &StrokeData {
@@ -72,19 +59,10 @@ impl StrokeManager {
     }
 
     for stroke_id in stroke_delta.removed.iter() {
+      dbg!(stroke_id);
       self.data.meshes.remove(stroke_id);
       self.data.parry_meshes.remove(stroke_id);
     }
-  }
-
-  pub fn render(
-    &mut self,
-    queue: &wgpu::Queue,
-    encoder: &mut wgpu::CommandEncoder,
-    camera_screen: &CameraWithScreen,
-  ) {
-    let meshes = self.data.meshes.iter().map(|(_, mesh)| mesh);
-    self.renderer.render(queue, encoder, camera_screen, meshes);
   }
 }
 
@@ -114,5 +92,17 @@ impl Stroke {
 
   pub fn add_point(&mut self, point: CanvasPoint) {
     self.points.push(point);
+  }
+
+  pub fn points(&self) -> &[CanvasPoint] {
+    &self.points
+  }
+
+  pub fn width_multiplier(&self) -> f32 {
+    self.width_multiplier
+  }
+
+  pub fn color(&self) -> LinSrgb {
+    self.color
   }
 }

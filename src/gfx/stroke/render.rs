@@ -1,4 +1,4 @@
-use crate::canvas::gfx::CameraWithScreen;
+use crate::{camera::Camera, gfx, stroke::StrokeManager};
 
 use encase::{ShaderType, UniformBuffer};
 use std::mem;
@@ -75,7 +75,7 @@ impl StrokeRenderer {
       },
       depth_stencil: None,
       multisample: wgpu::MultisampleState {
-        count: 1,
+        count: gfx::MSAA_NSAMPLES,
         mask: !0,
         alpha_to_coverage_enabled: false,
       },
@@ -97,13 +97,7 @@ impl StrokeRenderer {
     }
   }
 
-  pub fn render<'a>(
-    &mut self,
-    queue: &wgpu::Queue,
-    encoder: &mut wgpu::CommandEncoder,
-    camera_screen: &CameraWithScreen,
-    meshes: impl Iterator<Item = &'a StrokeMeshGpu>,
-  ) {
+  pub fn prepare(&mut self, queue: &wgpu::Queue, camera_screen: &Camera) {
     let view: na::Transform2<f32> = na::convert(camera_screen.canvas_to_view());
     let projection: na::Transform2<f32> = na::convert(camera_screen.view_to_screen_norm());
     let view_projection = projection * view;
@@ -114,26 +108,18 @@ impl StrokeRenderer {
     buffer.write(&camera_uniform).unwrap();
     let byte_buffer = buffer.into_inner();
     queue.write_buffer(&self.camera_ubo, 0, &byte_buffer);
+  }
 
-    let view = camera_screen.render_target();
-    let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-      label: Some("stroke_render_pass"),
-      color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-        view: &view,
-        ops: wgpu::Operations {
-          load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
-          store: true,
-        },
-        resolve_target: None,
-      })],
-      depth_stencil_attachment: None,
-    });
-
+  pub fn render<'rp>(
+    &'rp self,
+    render_pass: &mut wgpu::RenderPass<'rp>,
+    stroke_manager: &'rp StrokeManager,
+  ) {
     render_pass.set_pipeline(&self.pipeline);
     render_pass.set_bind_group(0, &self.bind_group, &[]);
 
-    for mesh in meshes {
-      mesh.draw(&mut render_pass);
+    for mesh in stroke_manager.data().meshes.values() {
+      mesh.draw(render_pass);
     }
   }
 }
@@ -143,8 +129,8 @@ struct CameraUniform {
   view_projection: na::Matrix3<f32>,
 }
 
-pub type StrokeMeshCpu = crate::canvas::gfx::MeshCpu<StrokeVertex>;
-pub type StrokeMeshGpu = crate::canvas::gfx::MeshGpu;
+pub type StrokeMeshCpu = crate::gfx::mesh::MeshCpu<StrokeVertex>;
+pub type StrokeMeshGpu = crate::gfx::mesh::MeshGpu;
 
 #[repr(C)]
 #[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]

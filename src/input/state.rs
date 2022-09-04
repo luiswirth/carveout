@@ -1,4 +1,4 @@
-use crate::canvas::{gfx::CameraWithScreen, space::*};
+use crate::{camera::Camera, spaces::*};
 
 use std::collections::{HashMap, HashSet};
 use winit::{
@@ -176,12 +176,7 @@ impl InputState {
     self.mouse_scroll_delta = None;
   }
 
-  pub fn handle_event(
-    &mut self,
-    event: &WindowEvent,
-    window: &Window,
-    camera_screen: &CameraWithScreen,
-  ) {
+  pub fn handle_event(&mut self, event: &WindowEvent, window: &Window, camera_screen: &Camera) {
     let store = &mut self.curr;
     match event {
       WindowEvent::MouseInput { state, button, .. } => {
@@ -271,12 +266,12 @@ impl InputState {
     };
   }
 
-  pub fn update(&mut self, camera_screen: &CameraWithScreen) {
+  pub fn update(&mut self, camera_screen: &Camera) {
     self.curr.update(camera_screen);
     self.multi_touch_movement = self.compute_touch_movement(camera_screen);
   }
 
-  fn compute_touch_movement(&mut self, camera_screen: &CameraWithScreen) -> Option<TouchMovement> {
+  fn compute_touch_movement(&mut self, camera_screen: &Camera) -> Option<TouchMovement> {
     let prev = self.prev.multi_touch.as_ref()?;
     let curr = self.curr.multi_touch.as_ref()?;
     let translation = curr.avg_pos.screen_pixel - prev.avg_pos.screen_pixel;
@@ -297,14 +292,14 @@ impl InputState {
 }
 
 impl InputsSnapshot {
-  fn update(&mut self, camera_screen: &CameraWithScreen) {
+  fn update(&mut self, camera_screen: &Camera) {
     if let Some(cursor_pos) = &mut self.cursor_pos {
       cursor_pos.canvas = CanvasPoint::from_screen_pixel(cursor_pos.screen_pixel, camera_screen);
     }
     self.multi_touch = self.compute_multi_touch(camera_screen);
   }
 
-  fn compute_multi_touch(&self, camera_screen: &CameraWithScreen) -> Option<MultiTouch> {
+  fn compute_multi_touch(&self, camera_screen: &Camera) -> Option<MultiTouch> {
     if self.touches.len() == 2 {
       let recip = 1.0 / 2.0;
 

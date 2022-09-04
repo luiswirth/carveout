@@ -92,7 +92,7 @@ impl ContentManager {
     &self.delta
   }
 
-  pub fn clear_delta(&mut self) {
+  pub fn reset_delta(&mut self) {
     self.delta.clear();
   }
 
