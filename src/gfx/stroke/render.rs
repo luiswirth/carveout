@@ -10,7 +10,7 @@ pub struct StrokeRenderer {
 }
 
 impl StrokeRenderer {
-  pub fn init(device: &wgpu::Device) -> Self {
+  pub fn init(device: &wgpu::Device, format: wgpu::TextureFormat) -> Self {
     let camera_ubo_size = CameraUniform::min_size();
     let camera_ubo = device.create_buffer(&wgpu::BufferDescriptor {
       label: Some("stroke_renderer_camera_ubo"),
@@ -49,7 +49,7 @@ impl StrokeRenderer {
     });
 
     let fragment_targets = &[Some(wgpu::ColorTargetState {
-      format: crate::gfx::STANDARD_TEXTURE_FORMAT,
+      format,
       blend: Some(wgpu::BlendState::REPLACE),
       write_mask: wgpu::ColorWrites::ALL,
     })];

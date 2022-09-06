@@ -7,8 +7,8 @@ pub struct CanvasRenderer {
 }
 
 impl CanvasRenderer {
-  pub fn init(device: &wgpu::Device) -> Self {
-    let stroke_renderer = StrokeRenderer::init(device);
+  pub fn init(device: &wgpu::Device, format: wgpu::TextureFormat) -> Self {
+    let stroke_renderer = StrokeRenderer::init(device, format);
     Self { stroke_renderer }
   }
 

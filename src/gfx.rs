@@ -10,7 +10,6 @@ use self::{canvas::CanvasRenderer, ui::UiRenderer};
 
 use winit::window::Window;
 
-pub const STANDARD_TEXTURE_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Bgra8UnormSrgb;
 pub const MSAA_NSAMPLES: u32 = 4;
 
 pub struct Gfx {
@@ -24,8 +23,8 @@ impl Gfx {
   pub async fn init(window: &winit::window::Window) -> Self {
     let wgpu = WgpuCtx::init(window).await;
 
-    let ui_renderer = UiRenderer::init(&wgpu.device);
-    let canvas_renderer = CanvasRenderer::init(&wgpu.device);
+    let ui_renderer = UiRenderer::init(&wgpu.device, wgpu.surface_configuration.format);
+    let canvas_renderer = CanvasRenderer::init(&wgpu.device, wgpu.surface_configuration.format);
 
     Self {
       wgpu,
@@ -128,7 +127,7 @@ pub struct WgpuCtx {
 
 impl WgpuCtx {
   pub async fn init(window: &winit::window::Window) -> Self {
-    let instance = wgpu::Instance::new(wgpu::Backends::PRIMARY);
+    let instance = wgpu::Instance::new(wgpu::Backends::all());
 
     let surface = unsafe { instance.create_surface(window) };
 
@@ -146,7 +145,12 @@ impl WgpuCtx {
         &wgpu::DeviceDescriptor {
           label: None,
           features: wgpu::Features::default(),
-          limits: wgpu::Limits::default(),
+
+          limits: if cfg!(target_arch = "wasm32") {
+            wgpu::Limits::downlevel_webgl2_defaults()
+          } else {
+            wgpu::Limits::default()
+          },
         },
         None,
       )
@@ -176,7 +180,7 @@ impl WgpuCtx {
       mip_level_count: 1,
       sample_count: MSAA_NSAMPLES,
       dimension: wgpu::TextureDimension::D2,
-      format: STANDARD_TEXTURE_FORMAT,
+      format: surface_configuration.format,
       usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
       label: Some("framebuffer"),
     };
