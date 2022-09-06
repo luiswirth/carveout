@@ -59,7 +59,6 @@ impl StrokeManager {
     }
 
     for stroke_id in stroke_delta.removed.iter() {
-      dbg!(stroke_id);
       self.data.meshes.remove(stroke_id);
       self.data.parry_meshes.remove(stroke_id);
     }

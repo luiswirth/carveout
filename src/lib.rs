@@ -182,12 +182,6 @@ impl Application {
       &mut self.camera,
     );
 
-    let access = self.content_manager.access();
-    let delta = self.content_manager.delta();
-    self
-      .stroke_manager
-      .update_strokes(access, &delta.strokes, self.gfx.wgpu().device());
-
     let egui_input: egui::RawInput = self.egui_winit.take_egui_input(&self.window);
     let egui_output = self.egui_ctx.run(egui_input, |ctx| {
       self.ui.run(
@@ -220,6 +214,12 @@ impl Application {
       *control_flow = ControlFlow::WaitUntil(repaint_at);
     }
     self.window.request_redraw();
+
+    let access = self.content_manager.access();
+    let delta = self.content_manager.delta();
+    self
+      .stroke_manager
+      .update_strokes(access, &delta.strokes, self.gfx.wgpu().device());
   }
 
   fn render(&mut self) {

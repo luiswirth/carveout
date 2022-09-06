@@ -26,11 +26,6 @@ pub struct ContentAccessMut<'a> {
 
 /// Methods for everybody
 impl<'a> ContentAccessMut<'a> {
-  pub fn stroke(&mut self, id: StrokeId) -> &mut Stroke {
-    self.delta.strokes.modified.push(id);
-    self.content.strokes.get_mut(id.0).unwrap()
-  }
-
   pub fn modify_stroke(&mut self, id: StrokeId) -> &mut Stroke {
     self.delta.strokes.modified.push(id);
     self.content.strokes.get_mut(id.0).unwrap()
@@ -47,12 +42,14 @@ impl<'a> ContentAccessMut<'a> {
   }
 
   pub(super) fn remove_stroke(&mut self, id: StrokeId) -> Stroke {
-    self.delta.strokes.removed.push(id);
     let result = self.content.strokes.remove(id.0);
 
     // If failed to remove id, try removing different generation
     match result {
-      Some(stroke) => stroke,
+      Some(stroke) => {
+        self.delta.strokes.removed.push(id);
+        stroke
+      }
       None => {
         let alternative_id = self
           .content
@@ -60,7 +57,9 @@ impl<'a> ContentAccessMut<'a> {
           .get_unknown_gen(id.0.index())
           .unwrap()
           .1;
-        self.content.strokes.remove(alternative_id).unwrap()
+        let alternative_id = StrokeId(alternative_id);
+        self.delta.strokes.removed.push(alternative_id);
+        self.content.strokes.remove(alternative_id.0).unwrap()
       }
     }
   }
