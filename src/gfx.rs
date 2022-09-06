@@ -44,6 +44,9 @@ impl Gfx {
 
     camera: &Camera,
   ) {
+    self
+      .canvas_renderer
+      .prepare(&self.wgpu.device, &self.wgpu.queue, camera);
     self.ui_renderer.prepare(
       window,
       &self.wgpu.device,
@@ -52,10 +55,6 @@ impl Gfx {
       egui_shapes,
       egui_textures_delta,
     );
-
-    self
-      .canvas_renderer
-      .prepare(&self.wgpu.device, &self.wgpu.queue, camera);
   }
 
   pub fn render(&mut self, scale_factor: f32, camera: &Camera, stroke_manager: &StrokeManager) {
@@ -99,10 +98,10 @@ impl Gfx {
         depth_stencil_attachment: None,
       });
 
-      self.ui_renderer.render(&mut render_pass);
       self
         .canvas_renderer
         .render(&mut render_pass, scale_factor, camera, stroke_manager);
+      self.ui_renderer.render(&mut render_pass);
     }
 
     self.wgpu.queue.submit(std::iter::once(encoder.finish()));
