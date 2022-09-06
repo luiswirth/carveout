@@ -9,9 +9,8 @@ pub struct UiRenderer {
 }
 
 impl UiRenderer {
-  pub fn init(device: &wgpu::Device) -> Self {
-    let egui_renderer =
-      EguiRenderPass::new(device, super::STANDARD_TEXTURE_FORMAT, super::MSAA_NSAMPLES);
+  pub fn init(device: &wgpu::Device, format: wgpu::TextureFormat) -> Self {
+    let egui_renderer = EguiRenderPass::new(device, format, super::MSAA_NSAMPLES);
     let screen_descriptor = ScreenDescriptor {
       size_in_pixels: [0; 2],
       pixels_per_point: 0.0,

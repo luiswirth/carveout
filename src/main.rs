@@ -1,9 +1,5 @@
-use carveout::Application;
+use carveout::run;
 
 fn main() {
-  let future = async {
-    let app = Application::init().await;
-    app.run();
-  };
-  futures::executor::block_on(future);
+  futures::executor::block_on(run());
 }

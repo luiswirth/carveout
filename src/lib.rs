@@ -22,16 +22,25 @@ use stroke::StrokeManager;
 use tool::ToolConfig;
 use ui::Ui;
 
-use std::time::{Duration, Instant};
+use instant::{Duration, Instant};
 use winit::{
   event::WindowEvent,
   event_loop::ControlFlow,
   window::{Window, WindowId},
 };
 
+#[cfg(target_arch = "wasm32")]
+use wasm_bindgen::prelude::*;
+
 pub type CustomEvent = ();
 pub type Event<'a> = winit::event::Event<'a, CustomEvent>;
 pub type EventLoop = winit::event_loop::EventLoop<CustomEvent>;
+
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen(start))]
+pub async fn run() {
+  let app = Application::init().await;
+  app.run();
+}
 
 pub struct Application {
   event_loop: Option<EventLoop>,
@@ -60,6 +69,17 @@ impl Application {
       .with_title(util::APP_NAME)
       .build(&event_loop)
       .expect("Fatal error: Failed to create winit window.");
+
+    #[cfg(target_arch = "wasm32")]
+    {
+      use winit::platform::web::WindowExtWebSys;
+      web_sys::window()
+        .and_then(|w| w.document())
+        .and_then(|d| d.body())
+        .and_then(|b| b.append_child(window.canvas()))
+        .expect("Fatal error: Failed to append window to html body");
+    }
+
     let input_handler = InputHandler::default();
     let gfx = Gfx::init(&window).await;
 

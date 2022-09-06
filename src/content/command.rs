@@ -5,8 +5,11 @@ use super::{access::ContentAccessMut, StrokeId};
 use dyn_clone::DynClone;
 use serde::{Deserialize, Serialize};
 
-#[typetag::serde(tag = "type", content = "value")]
-pub trait ProtocolCommand: DynClone + Send + Sync {
+//#[typetag::serde(tag = "type", content = "value")]
+
+pub trait ProtocolCommand:
+  DynClone + Send + Sync + serde_traitobject::Serialize + serde_traitobject::Deserialize
+{
   fn execute(&mut self, content: ContentAccessMut);
   fn rollback(&mut self, content: ContentAccessMut);
 }
@@ -24,7 +27,7 @@ impl AddStrokeCommand {
     Box::new(Self::Before(Box::new(stroke)))
   }
 }
-#[typetag::serde]
+//#[typetag::serde]
 impl ProtocolCommand for AddStrokeCommand {
   fn execute(&mut self, mut content: ContentAccessMut) {
     match std::mem::replace(self, Self::Invalid) {
@@ -58,7 +61,7 @@ impl RemoveStrokeCommand {
     Box::new(Self::Before(id))
   }
 }
-#[typetag::serde]
+//#[typetag::serde]
 impl ProtocolCommand for RemoveStrokeCommand {
   fn execute(&mut self, mut content: ContentAccessMut) {
     match *self {

@@ -39,6 +39,7 @@ impl Protocol {
 
 #[derive(Clone, Serialize, Deserialize)]
 pub(super) struct ProtocolNode {
+  #[serde(with = "serde_traitobject")]
   pub(super) command: Box<dyn ProtocolCommand>,
   pub(super) creation_time: chrono::DateTime<chrono::Local>,
 
@@ -78,7 +79,7 @@ impl ProtocolNode {
 
 #[derive(Clone, serde::Serialize, serde::Deserialize)]
 struct SentinelCommand;
-#[typetag::serde]
+//#[typetag::serde]
 impl ProtocolCommand for SentinelCommand {
   fn execute(&mut self, _: ContentAccessMut) {}
   fn rollback(&mut self, _: ContentAccessMut) {}
