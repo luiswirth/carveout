@@ -61,8 +61,6 @@ impl Application {
       .with_title(util::APP_NAME)
       .build(&event_loop)
       .expect("Fatal error: Failed to create winit window.");
-    let input_manager = InputManager::default();
-    let gfx = Gfx::init(&window).await;
 
     #[cfg(target_arch = "wasm32")]
     web_sys::window()
@@ -73,6 +71,9 @@ impl Application {
           .ok()
       })
       .expect("Fatal error: Failed to append winit window to html body.");
+
+    let input_manager = InputManager::default();
+    let gfx = Gfx::init(&window).await;
 
     let egui_ctx = egui::Context::default();
     let egui_winit = egui_winit::State::new(&event_loop);
