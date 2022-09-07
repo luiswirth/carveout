@@ -1,4 +1,5 @@
 #![allow(clippy::single_match)]
+#![feature(array_windows)]
 
 extern crate nalgebra as na;
 
@@ -10,16 +11,16 @@ mod input;
 mod log;
 mod spaces;
 mod stroke;
-mod tool;
+mod tools;
 mod ui;
 mod util;
 
 use camera::Camera;
 use content::ContentManager;
 use gfx::Gfx;
-use input::InputHandler;
+use input::InputManager;
 use stroke::StrokeManager;
-use tool::ToolConfig;
+use tools::ToolManager;
 use ui::Ui;
 
 use instant::{Duration, Instant};
@@ -29,23 +30,14 @@ use winit::{
   window::{Window, WindowId},
 };
 
-#[cfg(target_arch = "wasm32")]
-use wasm_bindgen::prelude::*;
-
 pub type CustomEvent = ();
 pub type Event<'a> = winit::event::Event<'a, CustomEvent>;
 pub type EventLoop = winit::event_loop::EventLoop<CustomEvent>;
 
-#[cfg_attr(target_arch = "wasm32", wasm_bindgen(start))]
-pub async fn run() {
-  let app = Application::init().await;
-  app.run();
-}
-
 pub struct Application {
   event_loop: Option<EventLoop>,
+  input_manager: InputManager,
   window: Window,
-  input_handler: InputHandler,
   gfx: Gfx,
 
   egui_ctx: egui::Context,
@@ -55,49 +47,48 @@ pub struct Application {
   ui: Ui,
 
   content_manager: ContentManager,
-  camera: Camera,
-  tool_config: ToolConfig,
+  tool_manager: ToolManager,
   stroke_manager: StrokeManager,
+  camera: Camera,
 }
 
 impl Application {
   pub async fn init() -> Application {
     log::init_log();
 
-    let event_loop = EventLoop::new();
-    let window = winit::window::WindowBuilder::new()
+    let event_loop = EventLoop::default();
+    let window = winit::window::WindowBuilder::default()
       .with_title(util::APP_NAME)
       .build(&event_loop)
       .expect("Fatal error: Failed to create winit window.");
+    let input_manager = InputManager::default();
+    let gfx = Gfx::init(&window).await;
 
     #[cfg(target_arch = "wasm32")]
-    {
-      use winit::platform::web::WindowExtWebSys;
-      web_sys::window()
-        .and_then(|w| w.document())
-        .and_then(|d| d.body())
-        .and_then(|b| b.append_child(window.canvas()))
-        .expect("Fatal error: Failed to append window to html body");
-    }
-
-    let input_handler = InputHandler::default();
-    let gfx = Gfx::init(&window).await;
+    web_sys::window()
+      .and_then(|w| w.document())
+      .and_then(|d| d.body())
+      .and_then(|b| {
+        b.append_child(&winit::platform::web::WindowExtWebSys::canvas(&window))
+          .ok()
+      })
+      .expect("Fatal error: Failed to append winit window to html body.");
 
     let egui_ctx = egui::Context::default();
     let egui_winit = egui_winit::State::new(&event_loop);
     let egui_shapes = None;
     let egui_textures_delta = None;
-    let ui = Ui::init();
+    let ui = Ui::default();
 
+    let camera = Camera::default();
     let content_manager = ContentManager::default();
-    let camera = Camera::init();
-    let tool_config = ToolConfig::default();
-
-    let stroke_manager = StrokeManager::init();
+    let tool_manager = ToolManager::default();
+    let stroke_manager = StrokeManager::default();
 
     Self {
       event_loop: Some(event_loop),
       window,
+      input_manager,
       gfx,
 
       egui_ctx,
@@ -107,11 +98,9 @@ impl Application {
       ui,
 
       content_manager,
-      camera,
-      input_handler,
-      tool_config,
-
+      tool_manager,
       stroke_manager,
+      camera,
     }
   }
 
@@ -165,21 +154,25 @@ impl Application {
     }
 
     self
-      .input_handler
-      .handle_event(&event, &self.window, &mut self.camera);
+      .input_manager
+      .handle_event(&event, &self.window, &self.camera);
   }
 
   fn reset(&mut self) {
-    self.input_handler.reset();
+    self.input_manager.reset();
     self.content_manager.reset_delta();
   }
 
   fn update(&mut self, control_flow: &mut ControlFlow) {
-    self.input_handler.update(
-      &self.tool_config,
+    self.input_manager.update(&self.camera);
+
+    camera::controller::update(&mut self.camera, &self.input_manager);
+
+    self.tool_manager.update(
+      &mut self.camera,
+      &self.input_manager,
       &mut self.content_manager,
       &self.stroke_manager,
-      &mut self.camera,
     );
 
     let egui_input: egui::RawInput = self.egui_winit.take_egui_input(&self.window);
@@ -187,9 +180,9 @@ impl Application {
       self.ui.run(
         ctx,
         ui::UiAccess {
-          content_manager: &mut self.content_manager,
           camera: &mut self.camera,
-          tool_config: &mut self.tool_config,
+          content_manager: &mut self.content_manager,
+          tool_manager: &mut self.tool_manager,
           stroke_manager: &mut self.stroke_manager,
         },
       );
@@ -237,4 +230,10 @@ impl Application {
       &self.stroke_manager,
     );
   }
+}
+
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen::prelude::wasm_bindgen(start))]
+pub async fn run() {
+  let app = Application::init().await;
+  app.run();
 }

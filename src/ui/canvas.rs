@@ -1,15 +1,11 @@
 use super::{overlay::ui_overlay, UiAccess};
 
+#[derive(Default)]
 pub struct CanvasUi {
   has_focus: bool,
 }
 
 impl CanvasUi {
-  pub fn init() -> Self {
-    let has_focus = false;
-    Self { has_focus }
-  }
-
   pub fn ui(&mut self, ctx: &egui::Context, ui_access: &mut UiAccess) {
     egui::CentralPanel::default()
       .frame(egui::Frame::canvas(&ctx.style()).fill(egui::Color32::TRANSPARENT))

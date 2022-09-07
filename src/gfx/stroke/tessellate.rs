@@ -12,16 +12,12 @@ use palette::LinSrgba;
 const DEFAULT_STROKE_WIDTH: f32 = 1.0;
 const STROKE_WIDTH_ATTRIBUTE: lyon::path::AttributeIndex = 0;
 
+#[derive(Default)]
 pub struct StrokeTessellator {
   tessellator: LyonStrokeTessellator,
 }
 
 impl StrokeTessellator {
-  pub fn init() -> Self {
-    let tessellator = LyonStrokeTessellator::new();
-    Self { tessellator }
-  }
-
   pub fn tessellate(&mut self, stroke: &Stroke) -> StrokeMeshCpu {
     let mut points = stroke
       .points()

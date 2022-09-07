@@ -10,19 +10,13 @@ use crate::{
 use palette::LinSrgb;
 use std::collections::HashMap;
 
+#[derive(Default)]
 pub struct StrokeManager {
   data: StrokeData,
   tessellator: StrokeTessellator,
 }
 
 impl StrokeManager {
-  pub fn init() -> Self {
-    let data = StrokeData::default();
-    let tessellator = StrokeTessellator::init();
-
-    Self { data, tessellator }
-  }
-
   pub fn data(&self) -> &StrokeData {
     &self.data
   }

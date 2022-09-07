@@ -97,9 +97,9 @@ impl StrokeRenderer {
     }
   }
 
-  pub fn prepare(&mut self, queue: &wgpu::Queue, camera_screen: &Camera) {
-    let view: na::Transform2<f32> = na::convert(camera_screen.canvas_to_view());
-    let projection: na::Transform2<f32> = na::convert(camera_screen.view_to_screen_norm());
+  pub fn prepare(&mut self, queue: &wgpu::Queue, camera: &Camera) {
+    let view: na::Transform2<f32> = na::convert(camera.canvas_to_view());
+    let projection: na::Transform2<f32> = na::convert(camera.view_to_screen_norm());
     let view_projection = projection * view;
     let view_projection = view_projection.to_homogeneous();
     let camera_uniform = CameraUniform { view_projection };

@@ -1,169 +1,350 @@
-mod state;
+use crate::{camera::Camera, spaces::*};
 
-mod eraser;
-mod pen;
-mod rotate_tool;
-mod scale_tool;
-mod translate_tool;
-
-use self::{
-  eraser::update_eraser, rotate_tool::update_rotate_tool, scale_tool::update_scale_tool,
-  state::InputState, translate_tool::update_translate_tool,
+use std::collections::{HashMap, HashSet};
+use winit::{
+  event::{
+    ElementState, ModifiersState, MouseButton, MouseScrollDelta, VirtualKeyCode, WindowEvent,
+  },
+  window::Window,
 };
-
-use crate::{
-  camera::Camera,
-  content::ContentManager,
-  spaces::{CanvasVector, CanvasVectorExt, ScreenNormVector},
-  stroke::StrokeManager,
-  tool::{ToolConfig, ToolEnum},
-};
-
-use winit::event::{VirtualKeyCode, WindowEvent};
 
 #[derive(Default)]
-pub struct InputHandler {
-  state: InputState,
+pub struct InputManager {
+  pub prev: InputsSnapshot,
+  pub curr: InputsSnapshot,
 
-  pen_handler: self::pen::PenInputHandler,
+  pub cursor_pos_left_clicked: Option<PointInSpaces>,
+  pub mouse_scroll_delta: Option<VectorInSpaces>,
+  pub multi_touch_movement: Option<TouchMovement>,
 }
 
-impl InputHandler {
-  pub fn reset(&mut self) {
-    self.state.reset();
+#[derive(Default, Clone)]
+pub struct InputsSnapshot {
+  pub pressed: HashSet<VirtualKeyCode>,
+  pub clicked: HashSet<MouseButton>,
+  pub touches: HashMap<TouchId, Touch>,
+  pub multi_touch: Option<MultiTouch>,
+  pub modifiers: ModifiersState,
+  pub cursor_pos: Option<PointInSpaces>,
+}
+
+#[allow(dead_code)]
+impl InputManager {
+  pub fn key(&self, key: VirtualKeyCode) -> ElementState {
+    match self.curr.pressed.contains(&key) {
+      true => ElementState::Pressed,
+      false => ElementState::Released,
+    }
   }
 
-  pub fn handle_event(
-    &mut self,
-    event: &WindowEvent,
-    window: &winit::window::Window,
-    camera_screen: &mut Camera,
-  ) {
-    self.state.handle_event(event, window, camera_screen);
+  pub fn key_prev(&self, key: VirtualKeyCode) -> ElementState {
+    match self.prev.pressed.contains(&key) {
+      true => ElementState::Pressed,
+      false => ElementState::Released,
+    }
   }
 
-  pub fn update(
-    &mut self,
-    tool_config: &ToolConfig,
-    content: &mut ContentManager,
-    stroke_manager: &StrokeManager,
-    camera_screen: &mut Camera,
-  ) {
-    match tool_config.selected {
-      ToolEnum::Pen => {
-        self
-          .pen_handler
-          .update(&self.state, content, &tool_config.pen, camera_screen)
-      }
-      ToolEnum::Eraser => update_eraser(&self.state, content, stroke_manager),
-      ToolEnum::Translate => update_translate_tool(&self.state, camera_screen),
-      ToolEnum::Rotate => update_rotate_tool(&self.state, camera_screen),
-      ToolEnum::Scale => update_scale_tool(&self.state, camera_screen),
+  pub fn button(&self, button: MouseButton) -> ElementState {
+    match self.curr.clicked.contains(&button) {
+      true => ElementState::Pressed,
+      false => ElementState::Released,
     }
-
-    Self::movement_key(&self.state, camera_screen);
-    Self::movement_mouse(&self.state, camera_screen);
-    Self::movement_touch(&self.state, camera_screen);
-
-    self.state.update(camera_screen);
   }
 
-  fn movement_key(input: &InputState, camera_screen: &mut Camera) {
-    let mut translation = ScreenNormVector::zeros();
-    const TRANSLATION_SPEED: f32 = 1.0 / 25.0;
-    if input.is_pressed(VirtualKeyCode::W) {
-      translation.y += TRANSLATION_SPEED.into();
+  pub fn button_prev(&self, button: MouseButton) -> ElementState {
+    match self.prev.clicked.contains(&button) {
+      true => ElementState::Pressed,
+      false => ElementState::Released,
     }
-    if input.is_pressed(VirtualKeyCode::A) {
-      translation.x += TRANSLATION_SPEED.into();
-    }
-    if input.is_pressed(VirtualKeyCode::S) {
-      translation.y -= TRANSLATION_SPEED.into();
-    }
-    if input.is_pressed(VirtualKeyCode::D) {
-      translation.x -= TRANSLATION_SPEED.into();
-    }
+  }
+}
 
-    let mut angle = 0.0;
-    const ROTATION_SPEED: f32 = 0.05;
-    if input.is_pressed(VirtualKeyCode::Q) {
-      angle += ROTATION_SPEED;
-    }
-    if input.is_pressed(VirtualKeyCode::E) {
-      angle -= ROTATION_SPEED;
-    }
-
-    let mut scale = 1.0;
-    const SCALE_SPEED: f32 = 0.01;
-    if input.is_pressed(VirtualKeyCode::Space) {
-      scale -= SCALE_SPEED;
-    }
-    if input.is_pressed(VirtualKeyCode::LShift) {
-      scale += SCALE_SPEED;
-    }
-
-    if translation != ScreenNormVector::zeros() {
-      let translation = CanvasVector::from_screen_norm(translation, camera_screen);
-      camera_screen.position -= translation;
-    }
-    camera_screen.angle += angle;
-    camera_screen.zoom *= scale;
+#[allow(dead_code)]
+impl InputManager {
+  pub fn is_pressed(&self, key: VirtualKeyCode) -> bool {
+    self.key(key) == ElementState::Pressed
   }
 
-  fn movement_mouse(input: &InputState, camera_screen: &mut Camera) {
-    enum ScrollMeaning {
-      Translation,
-      Rotation,
-      Scale,
-    }
-    let meaning = if input.is_pressed(VirtualKeyCode::LControl) {
-      ScrollMeaning::Scale
-    } else if input.is_pressed(VirtualKeyCode::LAlt) {
-      ScrollMeaning::Rotation
+  pub fn was_pressed(&self, key: VirtualKeyCode) -> bool {
+    self.key_prev(key) == ElementState::Pressed
+  }
+
+  pub fn is_unpressed(&self, key: VirtualKeyCode) -> bool {
+    self.key(key) == ElementState::Released
+  }
+
+  pub fn was_unpressed(&self, key: VirtualKeyCode) -> bool {
+    self.key_prev(key) == ElementState::Released
+  }
+
+  pub fn is_clicked(&self, button: MouseButton) -> bool {
+    self.button(button) == ElementState::Pressed
+  }
+
+  pub fn was_clicked(&self, button: MouseButton) -> bool {
+    self.button_prev(button) == ElementState::Pressed
+  }
+
+  pub fn is_unclicked(&self, button: MouseButton) -> bool {
+    self.button(button) == ElementState::Released
+  }
+
+  pub fn was_unclicked(&self, button: MouseButton) -> bool {
+    self.button_prev(button) == ElementState::Released
+  }
+}
+
+#[allow(dead_code)]
+impl InputManager {
+  pub fn got_pressed(&self, key: VirtualKeyCode) -> bool {
+    self.is_pressed(key) && !self.was_pressed(key)
+  }
+
+  pub fn got_unpressed(&self, key: VirtualKeyCode) -> bool {
+    self.is_unpressed(key) && !self.was_unpressed(key)
+  }
+
+  pub fn got_clicked(&self, button: MouseButton) -> bool {
+    self.is_clicked(button) && !self.was_clicked(button)
+  }
+
+  pub fn got_unclicked(&self, button: MouseButton) -> bool {
+    self.is_unclicked(button) && !self.was_unclicked(button)
+  }
+
+  pub fn cursor_screen_pixel_difference(&self) -> Option<ScreenPixelVector> {
+    if let Some((prev, curr)) = self
+      .prev
+      .cursor_pos
+      .as_ref()
+      .map(|p| p.screen_pixel)
+      .zip(self.curr.cursor_pos.as_ref().map(|p| p.screen_pixel))
+    {
+      Some(curr - prev)
     } else {
-      ScrollMeaning::Translation
+      None
+    }
+  }
+
+  pub fn cursor_screen_norm_difference(&self) -> Option<ScreenNormVector> {
+    if let Some((prev, curr)) = self
+      .prev
+      .cursor_pos
+      .as_ref()
+      .map(|p| p.screen_norm)
+      .zip(self.curr.cursor_pos.as_ref().map(|p| p.screen_norm))
+    {
+      Some(curr - prev)
+    } else {
+      None
+    }
+  }
+
+  pub fn cursor_canvas_difference(&self) -> Option<CanvasVector> {
+    if let Some((prev, curr)) = self
+      .prev
+      .cursor_pos
+      .as_ref()
+      .map(|p| p.canvas)
+      .zip(self.curr.cursor_pos.as_ref().map(|p| p.canvas))
+    {
+      Some(curr - prev)
+    } else {
+      None
+    }
+  }
+
+  pub fn cursor_screen_distance_sqr(&self) -> Option<ScreenPixelUnit> {
+    self
+      .cursor_screen_pixel_difference()
+      .map(|d| d.magnitude_squared())
+  }
+}
+
+#[derive(Debug)]
+pub struct TouchMovement {
+  pub center: PointInSpaces,
+  pub translation: VectorInSpaces,
+  pub rotation: f32,
+  pub scale: f32,
+}
+
+#[allow(dead_code)]
+impl InputManager {
+  pub fn reset(&mut self) {
+    self.prev = self.curr.clone();
+    self.mouse_scroll_delta = None;
+  }
+
+  pub fn handle_event(&mut self, event: &WindowEvent, window: &Window, camera: &Camera) {
+    let store = &mut self.curr;
+    match event {
+      WindowEvent::MouseInput { state, button, .. } => {
+        match state {
+          ElementState::Pressed => {
+            store.clicked.insert(*button);
+          }
+          ElementState::Released => {
+            store.clicked.remove(button);
+            self.cursor_pos_left_clicked = None;
+          }
+        };
+      }
+      WindowEvent::KeyboardInput {
+        input:
+          winit::event::KeyboardInput {
+            state,
+            virtual_keycode: Some(key),
+            ..
+          },
+        ..
+      } => {
+        match state {
+          ElementState::Pressed => store.pressed.insert(*key),
+          ElementState::Released => store.pressed.remove(key),
+        };
+      }
+      WindowEvent::ModifiersChanged(modifiers) => {
+        store.modifiers = *modifiers;
+      }
+      WindowEvent::CursorLeft { .. } => self.curr.cursor_pos = None,
+      WindowEvent::CursorMoved {
+        position: physical_position,
+        ..
+      } => {
+        self.curr.cursor_pos = Some(PointInSpaces::from_window_physical(
+          *physical_position,
+          window,
+          camera,
+        ));
+
+        if self.is_clicked(MouseButton::Left) && self.cursor_pos_left_clicked.is_none() {
+          self.cursor_pos_left_clicked = self.curr.cursor_pos.clone();
+        }
+      }
+
+      WindowEvent::MouseWheel { delta, .. } => {
+        const LINE_DELTA: f32 = 10.0;
+        let screen_pixel = match *delta {
+          MouseScrollDelta::LineDelta(mut x, mut y) => {
+            x *= LINE_DELTA;
+            y *= LINE_DELTA;
+            ScreenPixelVector::new(x.into(), y.into())
+          }
+          MouseScrollDelta::PixelDelta(delta) => {
+            let delta = delta.to_logical(window.scale_factor());
+            ScreenPixelVector::from_window_logical(delta)
+          }
+        };
+        let screen_norm = ScreenNormVector::from_screen_pixel(screen_pixel, camera);
+        let canvas = CanvasVector::from_screen_pixel(screen_pixel, camera);
+        self.mouse_scroll_delta = Some(VectorInSpaces {
+          screen_pixel,
+          screen_norm,
+          canvas,
+        });
+      }
+      WindowEvent::Touch(winit::event::Touch {
+        phase,
+        location,
+        id,
+        ..
+      }) => {
+        use winit::event::TouchPhase;
+        let position = PointInSpaces::from_window_physical(*location, window, camera);
+        let touch = Touch { position };
+        match phase {
+          TouchPhase::Started => {
+            store.touches.insert(*id, touch);
+          }
+          TouchPhase::Moved => *store.touches.get_mut(id).unwrap() = touch,
+          TouchPhase::Ended => assert!(store.touches.remove(id).is_some()),
+          TouchPhase::Cancelled => assert!(store.touches.remove(id).is_some()),
+        }
+      }
+      _ => {}
     };
-
-    let mut translation = ScreenNormVector::zeros();
-    let mut angle = 0.0;
-    let mut scale = 1.0;
-
-    match meaning {
-      ScrollMeaning::Translation => {
-        const TRANSLATION_SPEED: f32 = 5.0;
-        if let Some(scroll_delta) = &input.mouse_scroll_delta {
-          translation += scroll_delta.screen_norm.scale(TRANSLATION_SPEED.into());
-        }
-      }
-      ScrollMeaning::Rotation => {
-        const ROTATION_SPEED: f32 = 10.0;
-        if let Some(scroll_delta) = &input.mouse_scroll_delta {
-          angle += scroll_delta.screen_norm.y.0 * ROTATION_SPEED;
-        }
-      }
-      ScrollMeaning::Scale => {
-        const SCALE_SPEED: f32 = 3.0;
-        if let Some(scroll_delta) = &input.mouse_scroll_delta {
-          scale += scroll_delta.screen_norm.y.0 * SCALE_SPEED;
-        }
-      }
-    }
-
-    if translation != ScreenNormVector::zeros() {
-      let translation = CanvasVector::from_screen_norm(translation, camera_screen);
-      camera_screen.position -= translation;
-    }
-    if let Some(cursor) = &input.curr.cursor_pos {
-      camera_screen.rotate_with_center(angle, cursor.screen_pixel);
-      camera_screen.zoom_with_center(scale, cursor.screen_pixel);
-    }
   }
 
-  fn movement_touch(input: &InputState, camera_screen: &mut Camera) {
-    if let Some(movement) = &input.multi_touch_movement {
-      camera_screen.position -= movement.translation.canvas;
-      camera_screen.rotate_with_center(-movement.rotation, movement.center.screen_pixel);
-      camera_screen.zoom_with_center(movement.scale, movement.center.screen_pixel);
+  pub fn update(&mut self, camera: &Camera) {
+    self.curr.update(camera);
+    self.multi_touch_movement = self.compute_touch_movement(camera);
+  }
+
+  fn compute_touch_movement(&mut self, camera: &Camera) -> Option<TouchMovement> {
+    let prev = self.prev.multi_touch.as_ref()?;
+    let curr = self.curr.multi_touch.as_ref()?;
+    let translation = curr.avg_pos.screen_pixel - prev.avg_pos.screen_pixel;
+    let translation = VectorInSpaces::from_screen_pixel(translation, camera);
+    let rotation = (curr.heading - prev.heading).rem_euclid(std::f32::consts::TAU);
+    let scale = curr.avg_dist / prev.avg_dist;
+    let scale = scale.into();
+
+    let center = curr.avg_pos.clone();
+
+    Some(TouchMovement {
+      center,
+      translation,
+      rotation,
+      scale,
+    })
+  }
+}
+
+impl InputsSnapshot {
+  fn update(&mut self, camera: &Camera) {
+    if let Some(cursor_pos) = &mut self.cursor_pos {
+      cursor_pos.canvas = CanvasPoint::from_screen_pixel(cursor_pos.screen_pixel, camera);
+    }
+    self.multi_touch = self.compute_multi_touch(camera);
+  }
+
+  fn compute_multi_touch(&self, camera: &Camera) -> Option<MultiTouch> {
+    if self.touches.len() == 2 {
+      let recip = 1.0 / 2.0;
+
+      let [t0, t1] = {
+        let mut ts = self
+          .touches
+          .values()
+          .map(|t| t.position.screen_pixel)
+          .take(2);
+        [ts.next().unwrap(), ts.next().unwrap()]
+      };
+
+      let avg_pos = ScreenPixelPoint::from((t0.coords + t1.coords).scale(recip.into()));
+      let avg_pos = PointInSpaces::from_screen_pixel(avg_pos, camera);
+
+      let mut avg_dist = ScreenPixelUnit::new(0.0);
+      for t in [t0, t1] {
+        avg_dist += (avg_pos.screen_pixel - t).magnitude();
+      }
+      avg_dist *= recip.into();
+
+      let diff = (t1 - t0).cast::<f32>();
+      let heading = diff.y.atan2(diff.x);
+
+      Some(MultiTouch {
+        avg_pos,
+        avg_dist,
+        heading,
+      })
+    } else {
+      None
     }
   }
+}
+
+type TouchId = u64;
+
+#[derive(Clone, Debug)]
+pub struct Touch {
+  pub position: PointInSpaces,
+}
+
+#[derive(Debug, Clone)]
+pub struct MultiTouch {
+  avg_pos: PointInSpaces,
+  avg_dist: ScreenPixelUnit,
+  heading: f32,
 }

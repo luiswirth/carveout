@@ -1,10 +1,11 @@
 use super::UiAccess;
 
-use crate::{content::protocol::ProtocolUi, file, tool::ToolEnum, util};
+use crate::{content::protocol::ProtocolUi, file, tools::ToolEnum, util};
 
 use egui_file::FileDialog;
 use palette::{FromColor, Hsv, IntoColor};
 
+#[derive(Default)]
 pub struct SidebarUi {
   rainbow_mode: bool,
   protocol_ui: ProtocolUi,
@@ -13,15 +14,6 @@ pub struct SidebarUi {
 }
 
 impl SidebarUi {
-  pub fn init() -> Self {
-    Self {
-      rainbow_mode: false,
-      protocol_ui: ProtocolUi::default(),
-      protocol_tree_enabled: false,
-      file_dialog: None,
-    }
-  }
-
   pub fn ui(&mut self, ctx: &egui::Context, ui_access: &mut UiAccess) {
     if let Some(file_dialog) = &mut self.file_dialog {
       file_dialog.show(ctx);
@@ -99,20 +91,21 @@ impl SidebarUi {
 
       ui.group(|ui| {
         ui.label("Tools");
-        let selected = &mut ui_access.tool_config.selected;
+        let selected = &mut ui_access.tool_manager.selected;
 
         ui.horizontal_wrapped(|ui| {
           selectable_tool(ui, selected, ToolEnum::Pen, "✏");
           selectable_tool(ui, selected, ToolEnum::Eraser, "📙");
+          selectable_tool(ui, selected, ToolEnum::SelectLoop, "➰");
           selectable_tool(ui, selected, ToolEnum::Translate, "✋");
           selectable_tool(ui, selected, ToolEnum::Rotate, "🔄");
-          selectable_tool(ui, selected, ToolEnum::Scale, "🔍");
+          selectable_tool(ui, selected, ToolEnum::Zoom, "🔍");
         });
 
         ui.separator();
         match selected {
           ToolEnum::Pen => {
-            let mut pen = &mut ui_access.tool_config.pen;
+            let mut pen = &mut ui_access.tool_manager.configs.pen;
 
             ui.label("Pen color");
             let color = pen.color.into_components();
@@ -132,23 +125,29 @@ impl SidebarUi {
             ui.label("Pen width");
             ui.add(egui::Slider::new(&mut pen.width, 0.1..=10.0));
           }
+          ToolEnum::Eraser => {}
+          ToolEnum::SelectLoop => {}
           ToolEnum::Translate => {
-            ui.label("Translate option");
+            ui.label("Translate options");
             let position = &mut ui_access.camera.position;
-            ui.horizontal(|ui| {
+            ui.vertical(|ui| {
               const SPEED: f32 = 0.001;
-              ui.colored_label(egui::Color32::RED, "X:");
-              ui.add(egui::DragValue::new(&mut position.x.0).speed(SPEED));
-              ui.colored_label(egui::Color32::BLUE, "Y:");
-              ui.add(egui::DragValue::new(&mut position.y.0).speed(SPEED));
+              ui.horizontal(|ui| {
+                ui.colored_label(egui::Color32::RED, "X:");
+                ui.add(egui::DragValue::new(&mut position.x.0).speed(SPEED));
+              });
+              ui.horizontal(|ui| {
+                ui.colored_label(egui::Color32::BLUE, "Y:");
+                ui.add(egui::DragValue::new(&mut position.y.0).speed(SPEED));
+              });
             });
           }
           ToolEnum::Rotate => {
-            ui.label("Rotate option");
+            ui.label("Rotate options");
             let rotation = &mut ui_access.camera.angle;
             ui.add(egui::Slider::new(rotation, 0.0..=std::f32::consts::TAU));
           }
-          ToolEnum::Scale => {
+          ToolEnum::Zoom => {
             ui.label("Scale options");
             let zoom = &mut ui_access.camera.zoom;
             const SPEED_MUL: f32 = 0.003;
@@ -159,7 +158,6 @@ impl SidebarUi {
                 .speed(speed),
             );
           }
-          ToolEnum::Eraser => {}
         }
       });
     });

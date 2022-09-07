@@ -1,3 +1,5 @@
+use std::mem;
+
 use crate::stroke::Stroke;
 
 use super::{access::ContentAccessMut, StrokeId};
@@ -27,7 +29,7 @@ impl AddStrokeCommand {
 #[typetag::serde]
 impl ProtocolCommand for AddStrokeCommand {
   fn execute(&mut self, mut content: ContentAccessMut) {
-    match std::mem::replace(self, Self::Invalid) {
+    match mem::replace(self, Self::Invalid) {
       Self::Before(stroke) => {
         let id = content.add_stroke(*stroke);
         *self = Self::After(id);
@@ -37,7 +39,7 @@ impl ProtocolCommand for AddStrokeCommand {
   }
 
   fn rollback(&mut self, mut content: ContentAccessMut) {
-    match std::mem::replace(self, Self::Invalid) {
+    match mem::replace(self, Self::Invalid) {
       Self::After(id) => {
         let stroke = content.remove_stroke(id);
         *self = Self::Before(Box::new(stroke));
@@ -48,33 +50,39 @@ impl ProtocolCommand for AddStrokeCommand {
 }
 
 #[derive(Clone, Serialize, Deserialize)]
-pub enum RemoveStrokeCommand {
+pub enum RemoveStrokesCommand {
   Invalid,
-  Before(StrokeId),
-  After(Box<Stroke>),
+  Before(Vec<StrokeId>),
+  After(Vec<Stroke>),
 }
-impl RemoveStrokeCommand {
-  pub fn new(id: StrokeId) -> Box<Self> {
-    Box::new(Self::Before(id))
+impl RemoveStrokesCommand {
+  pub fn single(id: StrokeId) -> Box<dyn ProtocolCommand> {
+    Box::new(Self::Before(vec![id]))
+  }
+  pub fn multiple(ids: Vec<StrokeId>) -> Box<dyn ProtocolCommand> {
+    Box::new(Self::Before(ids))
   }
 }
 #[typetag::serde]
-impl ProtocolCommand for RemoveStrokeCommand {
+impl ProtocolCommand for RemoveStrokesCommand {
   fn execute(&mut self, mut content: ContentAccessMut) {
-    match *self {
-      Self::Before(id) => {
-        let stroke = content.remove_stroke(id);
-        *self = Self::After(Box::new(stroke));
+    match mem::replace(self, Self::Invalid) {
+      Self::Before(ids) => {
+        let strokes = ids
+          .into_iter()
+          .map(|id| content.remove_stroke(id))
+          .collect();
+        *self = Self::After(strokes);
       }
       _ => unreachable!(),
     }
   }
 
   fn rollback(&mut self, mut content: ContentAccessMut) {
-    match std::mem::replace(self, Self::Invalid) {
-      Self::After(stroke) => {
-        let id = content.add_stroke(*stroke);
-        *self = Self::Before(id);
+    match mem::replace(self, Self::Invalid) {
+      Self::After(strokes) => {
+        let ids = strokes.into_iter().map(|s| content.add_stroke(s)).collect();
+        *self = Self::Before(ids);
       }
       _ => unreachable!(),
     }
