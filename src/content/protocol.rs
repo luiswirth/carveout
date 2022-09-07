@@ -1,4 +1,4 @@
-use super::{access::ContentAccessMut, command::ProtocolCommand, ContentManager};
+use super::{command::ProtocolCommand, ContentManager};
 
 use serde::{Deserialize, Serialize};
 use std::f32::consts::TAU;
@@ -39,7 +39,7 @@ impl Protocol {
 
 #[derive(Clone, Serialize, Deserialize)]
 pub(super) struct ProtocolNode {
-  pub(super) command: Box<dyn ProtocolCommand>,
+  pub(super) command: ProtocolCommand,
   pub(super) creation_time: chrono::DateTime<chrono::Local>,
 
   pub(super) parent: ProtocolNodeId,
@@ -48,40 +48,34 @@ pub(super) struct ProtocolNode {
 }
 impl ProtocolNode {
   pub fn root() -> Self {
-    // root is it's own parent
-    let parent = ProtocolNodeId(0);
-    let command = Box::new(SentinelCommand);
+    let command = ProtocolCommand::Sentinel;
     let creation_time = chrono::Local::now();
-    let children = Vec::default();
-    let selected_child = None;
-    Self {
-      command,
-      creation_time,
-      parent,
-      children,
-      selected_child,
-    }
-  }
-  pub fn new(command: Box<dyn ProtocolCommand>, parent: ProtocolNodeId) -> Self {
-    let creation_time = chrono::Local::now();
-    let children = Vec::default();
-    let selected_child = None;
-    Self {
-      command,
-      creation_time,
-      parent,
-      children,
-      selected_child,
-    }
-  }
-}
 
-#[derive(Clone, serde::Serialize, serde::Deserialize)]
-struct SentinelCommand;
-#[typetag::serde]
-impl ProtocolCommand for SentinelCommand {
-  fn execute(&mut self, _: ContentAccessMut) {}
-  fn rollback(&mut self, _: ContentAccessMut) {}
+    let parent = ProtocolNodeId(0);
+    let children = Vec::default();
+    let selected_child = None;
+
+    Self {
+      command,
+      creation_time,
+
+      parent,
+      children,
+      selected_child,
+    }
+  }
+  pub fn new(command: ProtocolCommand, parent: ProtocolNodeId) -> Self {
+    let creation_time = chrono::Local::now();
+    let children = Vec::default();
+    let selected_child = None;
+    Self {
+      command,
+      creation_time,
+      parent,
+      children,
+      selected_child,
+    }
+  }
 }
 
 #[derive(Default)]

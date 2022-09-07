@@ -223,7 +223,6 @@ dependencies = [
  "chrono",
  "console_error_panic_hook",
  "directories",
- "dyn-clone",
  "egui",
  "egui-wgpu",
  "egui-winit",
@@ -244,7 +243,6 @@ dependencies = [
  "tracing-subscriber",
  "tracing-wasm",
  "typed-spaces",
- "typetag",
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-sys",
@@ -471,16 +469,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "ctor"
-version = "0.1.23"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cdffe87e1d521a10f9696f833fe502293ea446d7f256c06128293a4119bdf4cb"
-dependencies = [
- "quote",
- "syn",
-]
-
-[[package]]
 name = "cty"
 version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -586,12 +574,6 @@ dependencies = [
  "winapi",
  "wio",
 ]
-
-[[package]]
-name = "dyn-clone"
-version = "1.0.9"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4f94fa09c2aeea5b8839e414b7b841bf429fd25b9c522116ac97ee87856d88b2"
 
 [[package]]
 name = "egui"
@@ -702,15 +684,6 @@ dependencies = [
  "emath",
  "nohash-hasher",
  "parking_lot",
-]
-
-[[package]]
-name = "erased-serde"
-version = "0.3.23"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "54558e0ba96fbe24280072642eceb9d7d442e32c7ec0ea9e7ecd7b4ea2cf4e11"
-dependencies = [
- "serde",
 ]
 
 [[package]]
@@ -978,17 +951,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "ghost"
-version = "0.1.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "eb19fe8de3ea0920d282f7b77dd4227aea6b8b999b42cdf0ca41b2472b14443a"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn",
-]
-
-[[package]]
 name = "glow"
 version = "0.11.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1111,16 +1073,6 @@ dependencies = [
  "js-sys",
  "wasm-bindgen",
  "web-sys",
-]
-
-[[package]]
-name = "inventory"
-version = "0.3.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "30a61b8101d87996f82d725ba701b1987b7afc72f481c13513a30b855b9c9133"
-dependencies = [
- "ctor",
- "ghost",
 ]
 
 [[package]]
@@ -2383,30 +2335,6 @@ name = "typenum"
 version = "1.15.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dcf81ac59edc17cc8697ff311e8f5ef2d99fcbd9817b34cec66f90b6c3dfd987"
-
-[[package]]
-name = "typetag"
-version = "0.2.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "23c8909f61359cac318f10dc9a3f9a7ee2155b6511f2a0c973460222ae5a00bb"
-dependencies = [
- "erased-serde",
- "inventory",
- "once_cell",
- "serde",
- "typetag-impl",
-]
-
-[[package]]
-name = "typetag-impl"
-version = "0.2.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fd4d8ff674190866d3437d2f725355d49e99e3b1a513bf7ee43dcfe7effc36f4"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn",
-]
 
 [[package]]
 name = "unicode-bidi"

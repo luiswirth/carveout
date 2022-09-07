@@ -21,7 +21,7 @@ pub struct ContentManager {
 }
 
 impl ContentManager {
-  pub fn run_cmd(&mut self, mut cmd: Box<dyn ProtocolCommand>) {
+  pub fn run_cmd(&mut self, mut cmd: ProtocolCommand) {
     cmd.execute(self.access_mut());
     let new = ProtocolNode::new(cmd, self.protocol.head);
     let new_id = ProtocolNodeId(u32::try_from(self.protocol.nodes.len()).unwrap());

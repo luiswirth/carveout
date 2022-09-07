@@ -4,15 +4,31 @@ use crate::stroke::Stroke;
 
 use super::{access::ContentAccessMut, StrokeId};
 
-use dyn_clone::{clone_trait_object, DynClone};
 use serde::{Deserialize, Serialize};
 
-#[typetag::serde(tag = "type", content = "value")]
-pub trait ProtocolCommand: DynClone + Send + Sync {
-  fn execute(&mut self, content: ContentAccessMut);
-  fn rollback(&mut self, content: ContentAccessMut);
+#[derive(Clone, Serialize, Deserialize)]
+pub enum ProtocolCommand {
+  Sentinel,
+  AddStrokeCommand(AddStrokeCommand),
+  RemoveStrokesCommand(RemoveStrokesCommand),
 }
-clone_trait_object!(ProtocolCommand);
+impl ProtocolCommand {
+  pub fn execute(&mut self, content: ContentAccessMut) {
+    match self {
+      ProtocolCommand::Sentinel => {}
+      ProtocolCommand::AddStrokeCommand(cmd) => cmd.execute(content),
+      ProtocolCommand::RemoveStrokesCommand(cmd) => cmd.execute(content),
+    }
+  }
+
+  pub fn rollback(&mut self, content: ContentAccessMut) {
+    match self {
+      ProtocolCommand::Sentinel => {}
+      ProtocolCommand::AddStrokeCommand(cmd) => cmd.rollback(content),
+      ProtocolCommand::RemoveStrokesCommand(cmd) => cmd.rollback(content),
+    }
+  }
+}
 
 #[derive(Clone, Serialize, Deserialize)]
 pub enum AddStrokeCommand {
@@ -22,13 +38,12 @@ pub enum AddStrokeCommand {
 }
 
 impl AddStrokeCommand {
-  pub fn new(stroke: Stroke) -> Box<Self> {
-    Box::new(Self::Before(Box::new(stroke)))
+  pub fn new(stroke: Stroke) -> ProtocolCommand {
+    ProtocolCommand::AddStrokeCommand(Self::Before(Box::new(stroke)))
   }
 }
-#[typetag::serde]
-impl ProtocolCommand for AddStrokeCommand {
-  fn execute(&mut self, mut content: ContentAccessMut) {
+impl AddStrokeCommand {
+  pub fn execute(&mut self, mut content: ContentAccessMut) {
     match mem::replace(self, Self::Invalid) {
       Self::Before(stroke) => {
         let id = content.add_stroke(*stroke);
@@ -38,7 +53,7 @@ impl ProtocolCommand for AddStrokeCommand {
     };
   }
 
-  fn rollback(&mut self, mut content: ContentAccessMut) {
+  pub fn rollback(&mut self, mut content: ContentAccessMut) {
     match mem::replace(self, Self::Invalid) {
       Self::After(id) => {
         let stroke = content.remove_stroke(id);
@@ -56,16 +71,14 @@ pub enum RemoveStrokesCommand {
   After(Vec<Stroke>),
 }
 impl RemoveStrokesCommand {
-  pub fn single(id: StrokeId) -> Box<dyn ProtocolCommand> {
-    Box::new(Self::Before(vec![id]))
+  pub fn single(id: StrokeId) -> ProtocolCommand {
+    ProtocolCommand::RemoveStrokesCommand(Self::Before(vec![id]))
   }
-  pub fn multiple(ids: Vec<StrokeId>) -> Box<dyn ProtocolCommand> {
-    Box::new(Self::Before(ids))
+  pub fn multiple(ids: Vec<StrokeId>) -> ProtocolCommand {
+    ProtocolCommand::RemoveStrokesCommand(Self::Before(ids))
   }
-}
-#[typetag::serde]
-impl ProtocolCommand for RemoveStrokesCommand {
-  fn execute(&mut self, mut content: ContentAccessMut) {
+
+  pub fn execute(&mut self, mut content: ContentAccessMut) {
     match mem::replace(self, Self::Invalid) {
       Self::Before(ids) => {
         let strokes = ids
@@ -77,8 +90,7 @@ impl ProtocolCommand for RemoveStrokesCommand {
       _ => unreachable!(),
     }
   }
-
-  fn rollback(&mut self, mut content: ContentAccessMut) {
+  pub fn rollback(&mut self, mut content: ContentAccessMut) {
     match mem::replace(self, Self::Invalid) {
       Self::After(strokes) => {
         let ids = strokes.into_iter().map(|s| content.add_stroke(s)).collect();
