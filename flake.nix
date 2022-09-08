@@ -34,6 +34,9 @@
             clang
             mold
             zlib
+               
+            wasm-pack
+            binaryen
 
             vulkan-loader
             vulkan-validation-layers
