@@ -54,3 +54,10 @@ pub fn hsva_palette2egui(palette: palette::Hsva) -> egui::color::Hsva {
 pub fn hsva_egui2palette(egui: egui::color::Hsva) -> palette::Hsva {
   palette::Hsva::new(egui.h * 360.0, egui.s, egui.v, egui.a)
 }
+
+#[macro_export]
+macro_rules! natrans {
+  ($t:expr) => {
+    na::convert::<_, na::Transform2<f32>>($t)
+  };
+}

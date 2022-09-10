@@ -1,9 +1,8 @@
 mod camera;
-mod screen_rect;
 
-use self::{camera::Camera, screen_rect::ScreenRect};
+pub use self::camera::Camera;
 
-use crate::{input::InputManager, math::Rect};
+use crate::{input::InputManager, math::Rect, natrans};
 
 #[allow(dead_code)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -35,7 +34,7 @@ pub enum Space {
   /// origin camera position
   /// units canvas
   /// same as gfx view (square)
-  CanvasView,
+  View,
   /// canvas coordinate system
   /// origin center
   /// units initially same as screen norm
@@ -46,7 +45,7 @@ pub enum Space {
 #[derive(Debug, Default)]
 pub struct SpaceManager {
   camera: Camera,
-  screen_rect: ScreenRect,
+  screen_rect_window_logical: Rect,
   scale_factor: f32,
 }
 
@@ -58,37 +57,7 @@ impl SpaceManager {
   pub fn update_screen_rect(&mut self, new_egui_rect: egui::Rect) {
     let size_logical = mint::Vector2::from(new_egui_rect.size()).into();
     let center_window_logical = mint::Point2::from(new_egui_rect.center()).into();
-    let window_logical = Rect::from_size_center(size_logical, center_window_logical);
-    let screen_logical = Rect::from_size_min(size_logical, na::Point::origin());
-
-    let logical_to_physical = self.logical_to_physical();
-    let size_physical = logical_to_physical * size_logical;
-    let center_window_physical = logical_to_physical * center_window_logical;
-    let window_physical = Rect::from_size_center(size_physical, center_window_physical);
-    let screen_physical = Rect::from_size_min(size_physical, na::Point::origin());
-
-    let screen_norm = Rect::from_extents_half_center(na::vector![1.0, 1.0], na::Point::origin());
-
-    let extents_half_canvas = self.screen_norm_to_canvas_view() * na::vector![1.0, 1.0];
-    let canvas_view = Rect::from_extents_half_center(extents_half_canvas, na::Point::origin());
-
-    let center_canvas = self.view_to_canvas() * na::Point::origin();
-    let angle_canvas = self.camera.angle;
-    let canvas = Rect {
-      extents_half: extents_half_canvas,
-      center: center_canvas,
-      angle: angle_canvas,
-    };
-
-    self.screen_rect = ScreenRect {
-      window_physical,
-      window_logical,
-      screen_physical,
-      screen_logical,
-      screen_norm,
-      canvas_view,
-      canvas,
-    };
+    self.screen_rect_window_logical = Rect::from_size_center(size_logical, center_window_logical);
   }
 
   pub fn update_scale_factor(&mut self, scale_factor: f32) {
@@ -103,8 +72,8 @@ impl SpaceManager {
     &mut self.camera
   }
 
-  pub fn screen_rect(&self) -> &ScreenRect {
-    &self.screen_rect
+  pub fn screen_rect_window_logical(&self) -> Rect {
+    self.screen_rect_window_logical
   }
 }
 
@@ -118,21 +87,21 @@ impl SpaceManager {
   }
 
   pub fn window_to_screen_logical(&self) -> na::Translation2<f32> {
-    na::Translation2::from(-self.screen_rect.window_logical().min().coords)
+    na::Translation2::from(-self.screen_rect_window_logical.min().coords)
   }
   pub fn screen_to_window_logical(&self) -> na::Translation2<f32> {
-    na::Translation2::from(self.screen_rect.window_logical().min().coords)
+    na::Translation2::from(self.screen_rect_window_logical.min().coords)
   }
 
   pub fn window_to_screen_physical(&self) -> na::Translation2<f32> {
-    na::Translation2::from(-self.screen_rect.window_physical().min().coords)
+    na::Translation2::from(-self.screen_rect_window_logical.min().coords * self.scale_factor)
   }
   pub fn screen_to_window_physical(&self) -> na::Translation2<f32> {
-    na::Translation2::from(self.screen_rect.window_physical().min().coords)
+    na::Translation2::from(self.screen_rect_window_logical.min().coords * self.scale_factor)
   }
 
   pub fn screen_logical_to_norm(&self) -> na::Affine2<f32> {
-    let size = self.screen_rect.screen_logical().size();
+    let size = self.screen_rect_window_logical.size();
     let scale = na::Scale2::new(2.0 / size.x, 2.0 / size.y);
     let translation = na::Translation2::new(-1.0, -1.0);
 
@@ -143,7 +112,7 @@ impl SpaceManager {
   // gfx: viewport transform
   pub fn screen_norm_to_logical(&self) -> na::Affine2<f32> {
     let translation = na::Translation2::new(1.0, 1.0);
-    let size = self.screen_rect.screen_logical().size();
+    let size = self.screen_rect_window_logical.size();
     let scale = na::Scale2::new(size.x / 2.0, size.y / 2.0);
 
     let translation: na::Affine2<f32> = na::convert(translation);
@@ -152,14 +121,19 @@ impl SpaceManager {
   }
 
   pub fn screen_norm_to_canvas_view(&self) -> na::Scale2<f32> {
-    let screen_aspect_scale = na::Scale2::from(self.screen_rect.size_norm_w());
+    let screen_aspect_scale = na::Scale2::from(self.screen_rect_window_logical.size_norm_w());
     let camera_zoom = na::Scale2::new(1.0 / self.camera.zoom, 1.0 / self.camera.zoom);
     camera_zoom * screen_aspect_scale
   }
   // gfx: projection (mvP)
   pub fn canvas_view_to_screen_norm(&self) -> na::Scale2<f32> {
     let camera_zoom = na::Scale2::new(self.camera.zoom, self.camera.zoom);
-    let screen_aspect_scale = na::Scale2::from(self.screen_rect.size_norm_w().map(|e| 1.0 / e));
+    let screen_aspect_scale = na::Scale2::from(
+      self
+        .screen_rect_window_logical
+        .size_norm_w()
+        .map(|e| 1.0 / e),
+    );
     screen_aspect_scale * camera_zoom
   }
 
@@ -174,12 +148,6 @@ impl SpaceManager {
     let rotation = na::Rotation2::new(-self.camera.angle);
     rotation * translation
   }
-}
-
-macro_rules! natrans {
-  ($t:expr) => {
-    na::convert::<_, na::Transform2<f32>>($t)
-  };
 }
 
 impl SpaceManager {
@@ -213,6 +181,7 @@ impl SpaceManager {
   ) -> na::Vector2<f32> {
     use Space::*;
     match [src, dst] {
+      [WindowLogical, WindowPhysical] => self.logical_to_physical() * vector,
       [ScreenLogical, Canvas] => {
         natrans!(self.view_to_canvas())
           * natrans!(self.screen_norm_to_canvas_view())
@@ -227,6 +196,25 @@ impl SpaceManager {
       }
       [ScreenLogical, ScreenNorm] => self.screen_logical_to_norm() * vector,
       _ => unimplemented!("`transform_vector` from {src:?} to {dst:?} unimplemented.",),
+    }
+  }
+  pub fn transform_rect(&self, rect: Rect, src: Space, dst: Space) -> Rect {
+    use Space::*;
+    match [src, dst] {
+      [WindowLogical, WindowPhysical] => {
+        let center = self.logical_to_physical() * rect.center;
+        let extents_half = self.logical_to_physical() * rect.extents_half;
+        Rect::from_extents_half_center(extents_half, center)
+      }
+      [WindowLogical, Canvas] => {
+        let transformation = natrans!(self.view_to_canvas())
+          * natrans!(self.screen_norm_to_canvas_view())
+          * natrans!(self.screen_logical_to_norm())
+          * natrans!(self.window_to_screen_logical());
+
+        Rect::from_vertices(rect.vertices().map(|v| transformation * v))
+      }
+      _ => unimplemented!("`transform_rect` from {src:?} to {dst:?} unimplemented.",),
     }
   }
 }

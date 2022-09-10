@@ -25,5 +25,6 @@ pub struct UiAccess<'a> {
   pub spaces: &'a mut crate::SpaceManager,
   pub content_manager: &'a mut crate::ContentManager,
   pub tool_manager: &'a mut crate::ToolManager,
+  pub pdf_manager: &'a mut Option<crate::PdfManager>,
   pub stroke_manager: &'a mut crate::StrokeManager,
 }

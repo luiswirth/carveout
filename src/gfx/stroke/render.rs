@@ -1,24 +1,21 @@
-use crate::{gfx, spaces::SpaceManager, stroke::StrokeManager};
+use crate::{
+  gfx::{self, BufferSized},
+  stroke::StrokeManager,
+};
 
-use encase::{ShaderType, UniformBuffer};
 use std::mem;
 
 pub struct StrokeRenderer {
   pipeline: wgpu::RenderPipeline,
   bind_group: wgpu::BindGroup,
-  camera_ubo: wgpu::Buffer,
 }
 
 impl StrokeRenderer {
-  pub fn init(device: &wgpu::Device, format: wgpu::TextureFormat) -> Self {
-    let camera_ubo_size = CameraUniform::min_size();
-    let camera_ubo = device.create_buffer(&wgpu::BufferDescriptor {
-      label: Some("stroke_renderer_camera_ubo"),
-      size: camera_ubo_size.into(),
-      usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-      mapped_at_creation: false,
-    });
-
+  pub fn init(
+    device: &wgpu::Device,
+    format: wgpu::TextureFormat,
+    camera_buffer: &BufferSized,
+  ) -> Self {
     let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
       label: Some("stroke_renderer_bind_group_layout"),
       entries: &[wgpu::BindGroupLayoutEntry {
@@ -27,7 +24,7 @@ impl StrokeRenderer {
         ty: wgpu::BindingType::Buffer {
           ty: wgpu::BufferBindingType::Uniform,
           has_dynamic_offset: false,
-          min_binding_size: Some(camera_ubo_size),
+          min_binding_size: Some(camera_buffer.size),
         },
         count: None,
       }],
@@ -38,7 +35,7 @@ impl StrokeRenderer {
       layout: &bind_group_layout,
       entries: &[wgpu::BindGroupEntry {
         binding: 0,
-        resource: camera_ubo.as_entire_binding(),
+        resource: camera_buffer.buffer.as_entire_binding(),
       }],
     });
 
@@ -93,21 +90,7 @@ impl StrokeRenderer {
     Self {
       pipeline,
       bind_group,
-      camera_ubo,
     }
-  }
-
-  pub fn prepare(&mut self, queue: &wgpu::Queue, spaces: &SpaceManager) {
-    let view: na::Transform2<f32> = na::convert(spaces.canvas_to_view());
-    let projection: na::Transform2<f32> = na::convert(spaces.canvas_view_to_screen_norm());
-    let view_projection = projection * view;
-    let view_projection = view_projection.to_homogeneous();
-    let camera_uniform = CameraUniform { view_projection };
-
-    let mut buffer = UniformBuffer::new(Vec::new());
-    buffer.write(&camera_uniform).unwrap();
-    let byte_buffer = buffer.into_inner();
-    queue.write_buffer(&self.camera_ubo, 0, &byte_buffer);
   }
 
   pub fn render<'rp>(
@@ -122,11 +105,6 @@ impl StrokeRenderer {
       mesh.draw(render_pass);
     }
   }
-}
-
-#[derive(ShaderType)]
-struct CameraUniform {
-  view_projection: na::Matrix3<f32>,
 }
 
 pub type StrokeMeshCpu = crate::gfx::mesh::MeshCpu<StrokeVertex>;
@@ -147,7 +125,7 @@ impl StrokeVertex {
 
   fn vertex_buffer_layout<'a>() -> wgpu::VertexBufferLayout<'a> {
     wgpu::VertexBufferLayout {
-      array_stride: mem::size_of::<StrokeVertex>() as wgpu::BufferAddress,
+      array_stride: mem::size_of::<Self>() as wgpu::BufferAddress,
       step_mode: wgpu::VertexStepMode::Vertex,
       attributes: &Self::LAYOUT_ATTRIBUTES,
     }

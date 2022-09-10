@@ -34,9 +34,8 @@
             clang
             mold
             zlib
-               
-            wasm-pack
-            binaryen
+                
+            trunk
 
             vulkan-loader
             vulkan-validation-layers
@@ -46,6 +45,8 @@
             freetype
             fontconfig
             expat
+
+            linuxPackages_latest.perf
           ];
           VK_LAYER_PATH = "${pkgs.vulkan-validation-layers}/share/vulkan/explicit_layer.d";
           LD_LIBRARY_PATH = "${lib.makeLibraryPath buildInputs}";

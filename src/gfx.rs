@@ -1,16 +1,17 @@
 pub mod canvas;
+pub mod pdf;
 pub mod stroke;
 pub mod ui;
 
 mod mesh;
 
-use crate::{spaces::SpaceManager, stroke::StrokeManager};
-
 use self::{canvas::CanvasRenderer, ui::UiRenderer};
+
+use crate::{pdf::PdfManager, spaces::SpaceManager, stroke::StrokeManager};
 
 use winit::window::Window;
 
-pub const MSAA_NSAMPLES: u32 = 4;
+pub const MSAA_NSAMPLES: u32 = 1;
 
 pub struct Gfx {
   wgpu: WgpuCtx,
@@ -41,11 +42,13 @@ impl Gfx {
     egui_shapes: Vec<egui::epaint::ClippedShape>,
     egui_textures_delta: egui::TexturesDelta,
 
-    space_transform: &SpaceManager,
+    pdf_manager: Option<&PdfManager>,
+    spaces: &SpaceManager,
   ) {
     self
       .canvas_renderer
-      .prepare(&self.wgpu.device, &self.wgpu.queue, space_transform);
+      .prepare(&self.wgpu.device, &self.wgpu.queue, spaces, pdf_manager);
+
     self.ui_renderer.prepare(
       window,
       &self.wgpu.device,
@@ -55,7 +58,6 @@ impl Gfx {
       egui_textures_delta,
     );
   }
-
   pub fn render(&mut self, spaces: &SpaceManager, stroke_manager: &StrokeManager) {
     let surface_texture = match self.wgpu.surface.get_current_texture() {
       Ok(frame) => frame,
@@ -87,12 +89,20 @@ impl Gfx {
       let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
         label: Some("render_pass"),
         color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-          view: framebuffer,
+          view: if MSAA_NSAMPLES == 1 {
+            render_target
+          } else {
+            framebuffer
+          },
           ops: wgpu::Operations {
-            load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+            load: wgpu::LoadOp::Clear(wgpu::Color::WHITE),
             store: true,
           },
-          resolve_target: Some(render_target),
+          resolve_target: if MSAA_NSAMPLES == 1 {
+            None
+          } else {
+            Some(render_target)
+          },
         })],
         depth_stencil_attachment: None,
       });
@@ -218,5 +228,15 @@ impl WgpuCtx {
 impl WgpuCtx {
   pub fn device(&self) -> &wgpu::Device {
     &self.device
+  }
+}
+
+pub struct BufferSized {
+  pub buffer: wgpu::Buffer,
+  pub size: wgpu::BufferSize,
+}
+impl BufferSized {
+  pub fn new(buffer: wgpu::Buffer, size: wgpu::BufferSize) -> Self {
+    Self { buffer, size }
   }
 }

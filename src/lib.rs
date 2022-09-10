@@ -9,6 +9,7 @@ mod gfx;
 mod input;
 mod log;
 mod math;
+mod pdf;
 mod spaces;
 mod stroke;
 mod tools;
@@ -18,6 +19,7 @@ mod util;
 use content::ContentManager;
 use gfx::Gfx;
 use input::InputManager;
+use pdf::PdfManager;
 use spaces::SpaceManager;
 use stroke::StrokeManager;
 use tools::ToolManager;
@@ -48,9 +50,10 @@ pub struct Application {
 
   content_manager: ContentManager,
   tool_manager: ToolManager,
+  pdf_manager: Option<PdfManager>,
   stroke_manager: StrokeManager,
 
-  spaces: SpaceManager,
+  space_manager: SpaceManager,
 }
 
 impl Application {
@@ -84,9 +87,11 @@ impl Application {
 
     let content_manager = ContentManager::default();
     let tool_manager = ToolManager::default();
+    let pdf_manager = None;
     let stroke_manager = StrokeManager::default();
+    let space_manager = SpaceManager::default();
 
-    let spaces = SpaceManager::default();
+    //home/luis/dl/grid.pdf
 
     Self {
       event_loop: Some(event_loop),
@@ -102,9 +107,10 @@ impl Application {
 
       content_manager,
       tool_manager,
+      pdf_manager,
       stroke_manager,
 
-      spaces,
+      space_manager,
     }
   }
 
@@ -157,7 +163,7 @@ impl Application {
       return;
     }
 
-    self.input_manager.handle_event(&event, &self.spaces);
+    self.input_manager.handle_event(&event, &self.space_manager);
   }
 
   fn reset(&mut self) {
@@ -169,7 +175,7 @@ impl Application {
     self.input_manager.update();
 
     self.tool_manager.update(
-      &mut self.spaces,
+      &mut self.space_manager,
       &self.input_manager,
       &mut self.content_manager,
       &self.stroke_manager,
@@ -180,9 +186,10 @@ impl Application {
       self.ui.run(
         ctx,
         ui::UiAccess {
-          spaces: &mut self.spaces,
+          spaces: &mut self.space_manager,
           content_manager: &mut self.content_manager,
           tool_manager: &mut self.tool_manager,
+          pdf_manager: &mut self.pdf_manager,
           stroke_manager: &mut self.stroke_manager,
         },
       );
@@ -214,12 +221,14 @@ impl Application {
       .stroke_manager
       .update_strokes(access, &delta.strokes, self.gfx.wgpu().device());
 
-    self.spaces.update_camera_controller(&self.input_manager);
     self
-      .spaces
+      .space_manager
+      .update_camera_controller(&self.input_manager);
+    self
+      .space_manager
       .update_scale_factor(self.window.scale_factor() as f32);
     self
-      .spaces
+      .space_manager
       .update_screen_rect(self.ui.canvas().screen_rect());
   }
 
@@ -229,10 +238,11 @@ impl Application {
       &self.egui_ctx,
       self.egui_shapes.take().unwrap(),
       self.egui_textures_delta.take().unwrap(),
-      &self.spaces,
+      self.pdf_manager.as_ref(),
+      &self.space_manager,
     );
 
-    self.gfx.render(&self.spaces, &self.stroke_manager);
+    self.gfx.render(&self.space_manager, &self.stroke_manager);
   }
 }
 

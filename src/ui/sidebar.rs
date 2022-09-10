@@ -1,6 +1,6 @@
 use super::UiAccess;
 
-use crate::{content::protocol::ProtocolUi, file, tools::ToolEnum, util};
+use crate::{content::protocol::ProtocolUi, file, pdf::PdfManager, tools::ToolEnum, util};
 
 use egui_file::FileDialog;
 use palette::{FromColor, Hsv, IntoColor};
@@ -10,12 +10,13 @@ pub struct SidebarUi {
   rainbow_mode: bool,
   protocol_ui: ProtocolUi,
   protocol_tree_enabled: bool,
-  file_dialog: Option<FileDialog>,
+  project_file_dialog: Option<FileDialog>,
+  pdf_file_dialog: Option<FileDialog>,
 }
 
 impl SidebarUi {
   pub fn ui(&mut self, ctx: &egui::Context, ui_access: &mut UiAccess) {
-    if let Some(file_dialog) = &mut self.file_dialog {
+    if let Some(file_dialog) = &mut self.project_file_dialog {
       file_dialog.show(ctx);
       if file_dialog.selected() {
         let file_path = file_dialog.path().unwrap();
@@ -31,7 +32,21 @@ impl SidebarUi {
             let savefile = file::Savefile { content, protocol };
             file::save(&savefile, file_path);
           }
-          _ => {}
+          _ => unreachable!(),
+        }
+      }
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    if let Some(file_dialog) = &mut self.pdf_file_dialog {
+      file_dialog.show(ctx);
+      if file_dialog.selected() {
+        let file_path = file_dialog.path().unwrap();
+        match file_dialog.dialog_type() {
+          egui_file::DialogType::OpenFile => {
+            *ui_access.pdf_manager = Some(PdfManager::load_document(file_path));
+          }
+          _ => unreachable!(),
         }
       }
     }
@@ -44,19 +59,31 @@ impl SidebarUi {
       ui.add_space(10.0);
 
       ui.group(|ui| {
-        ui.label("File");
+        ui.label("Project File");
         ui.horizontal_wrapped(|ui| {
           if ui.button("📂").clicked() {
             let mut file_dialog =
               FileDialog::open_file(Some(util::USER_DIRS.home_dir().to_owned()));
             file_dialog.open();
-            self.file_dialog = Some(file_dialog);
+            self.project_file_dialog = Some(file_dialog);
           }
           if ui.button("🗄").clicked() {
             let mut file_dialog =
               FileDialog::save_file(Some(util::USER_DIRS.home_dir().to_owned()));
             file_dialog.open();
-            self.file_dialog = Some(file_dialog);
+            self.project_file_dialog = Some(file_dialog);
+          }
+        });
+
+        ui.separator();
+
+        ui.label("PDF File");
+        ui.horizontal_wrapped(|ui| {
+          if ui.button("📂").clicked() {
+            let mut file_dialog =
+              FileDialog::open_file(Some(util::USER_DIRS.home_dir().to_owned()));
+            file_dialog.open();
+            self.pdf_file_dialog = Some(file_dialog);
           }
         });
       });

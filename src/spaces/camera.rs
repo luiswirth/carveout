@@ -49,7 +49,6 @@ pub mod controller {
     movement_mouse(spaces, input);
     movement_touch(spaces, input);
   }
-
   fn movement_key(spaces: &mut SpaceManager, input: &InputManager) {
     let mut translation_screen_norm = na::Vector2::zeros();
     const TRANSLATION_SPEED: f32 = 1.0 / 35.0;

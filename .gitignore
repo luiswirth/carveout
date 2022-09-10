@@ -1,3 +1,6 @@
 /target
 *.spv
 /.direnv
+flamegraph.svg
+perf.*
+/dist
