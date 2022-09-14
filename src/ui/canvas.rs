@@ -1,8 +1,16 @@
 use super::{overlay::ui_overlay, UiAccess};
 
-#[derive(Default)]
 pub struct CanvasUi {
+  screen_rect: egui::Rect,
   has_focus: bool,
+}
+impl Default for CanvasUi {
+  fn default() -> Self {
+    Self {
+      screen_rect: egui::Rect::NAN,
+      has_focus: false,
+    }
+  }
 }
 
 impl CanvasUi {
@@ -10,16 +18,19 @@ impl CanvasUi {
     egui::CentralPanel::default()
       .frame(egui::Frame::canvas(&ctx.style()).fill(egui::Color32::TRANSPARENT))
       .show(ctx, |ui| {
-        let rect = ui.available_rect_before_wrap();
-        let response = ui.allocate_rect(rect, egui::Sense::hover());
-        ui_access.camera.viewport = rect;
+        self.screen_rect = ui.available_rect_before_wrap();
+        let response = ui.allocate_rect(self.screen_rect, egui::Sense::hover());
         self.has_focus = response.hovered();
 
-        ui_overlay(ctx, ui_access);
+        ui_overlay(ctx, ui_access, self.screen_rect);
       });
   }
 
   pub fn has_focus(&self) -> bool {
     self.has_focus
+  }
+
+  pub fn screen_rect(&self) -> egui::Rect {
+    self.screen_rect
   }
 }

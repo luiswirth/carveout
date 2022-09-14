@@ -1,4 +1,4 @@
-use crate::{camera::Camera, gfx, stroke::StrokeManager};
+use crate::{gfx, spaces::SpaceManager, stroke::StrokeManager};
 
 use encase::{ShaderType, UniformBuffer};
 use std::mem;
@@ -97,9 +97,9 @@ impl StrokeRenderer {
     }
   }
 
-  pub fn prepare(&mut self, queue: &wgpu::Queue, camera: &Camera) {
-    let view: na::Transform2<f32> = na::convert(camera.canvas_to_view());
-    let projection: na::Transform2<f32> = na::convert(camera.view_to_screen_norm());
+  pub fn prepare(&mut self, queue: &wgpu::Queue, spaces: &SpaceManager) {
+    let view: na::Transform2<f32> = na::convert(spaces.canvas_to_view());
+    let projection: na::Transform2<f32> = na::convert(spaces.canvas_view_to_screen_norm());
     let view_projection = projection * view;
     let view_projection = view_projection.to_homogeneous();
     let camera_uniform = CameraUniform { view_projection };

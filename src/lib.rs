@@ -3,22 +3,22 @@
 
 extern crate nalgebra as na;
 
-mod camera;
 mod content;
 mod file;
 mod gfx;
 mod input;
 mod log;
+mod math;
 mod spaces;
 mod stroke;
 mod tools;
 mod ui;
 mod util;
 
-use camera::Camera;
 use content::ContentManager;
 use gfx::Gfx;
 use input::InputManager;
+use spaces::SpaceManager;
 use stroke::StrokeManager;
 use tools::ToolManager;
 use ui::Ui;
@@ -49,7 +49,8 @@ pub struct Application {
   content_manager: ContentManager,
   tool_manager: ToolManager,
   stroke_manager: StrokeManager,
-  camera: Camera,
+
+  spaces: SpaceManager,
 }
 
 impl Application {
@@ -81,10 +82,11 @@ impl Application {
     let egui_textures_delta = None;
     let ui = Ui::default();
 
-    let camera = Camera::default();
     let content_manager = ContentManager::default();
     let tool_manager = ToolManager::default();
     let stroke_manager = StrokeManager::default();
+
+    let spaces = SpaceManager::default();
 
     Self {
       event_loop: Some(event_loop),
@@ -101,7 +103,8 @@ impl Application {
       content_manager,
       tool_manager,
       stroke_manager,
-      camera,
+
+      spaces,
     }
   }
 
@@ -154,9 +157,7 @@ impl Application {
       return;
     }
 
-    self
-      .input_manager
-      .handle_event(&event, &self.window, &self.camera);
+    self.input_manager.handle_event(&event, &self.spaces);
   }
 
   fn reset(&mut self) {
@@ -165,12 +166,10 @@ impl Application {
   }
 
   fn update(&mut self, control_flow: &mut ControlFlow) {
-    self.input_manager.update(&self.camera);
-
-    camera::controller::update(&mut self.camera, &self.input_manager);
+    self.input_manager.update();
 
     self.tool_manager.update(
-      &mut self.camera,
+      &mut self.spaces,
       &self.input_manager,
       &mut self.content_manager,
       &self.stroke_manager,
@@ -181,7 +180,7 @@ impl Application {
       self.ui.run(
         ctx,
         ui::UiAccess {
-          camera: &mut self.camera,
+          spaces: &mut self.spaces,
           content_manager: &mut self.content_manager,
           tool_manager: &mut self.tool_manager,
           stroke_manager: &mut self.stroke_manager,
@@ -214,6 +213,14 @@ impl Application {
     self
       .stroke_manager
       .update_strokes(access, &delta.strokes, self.gfx.wgpu().device());
+
+    self.spaces.update_camera_controller(&self.input_manager);
+    self
+      .spaces
+      .update_scale_factor(self.window.scale_factor() as f32);
+    self
+      .spaces
+      .update_screen_rect(self.ui.canvas().screen_rect());
   }
 
   fn render(&mut self) {
@@ -222,14 +229,10 @@ impl Application {
       &self.egui_ctx,
       self.egui_shapes.take().unwrap(),
       self.egui_textures_delta.take().unwrap(),
-      &self.camera,
+      &self.spaces,
     );
 
-    self.gfx.render(
-      self.window.scale_factor() as f32,
-      &self.camera,
-      &self.stroke_manager,
-    );
+    self.gfx.render(&self.spaces, &self.stroke_manager);
   }
 }
 

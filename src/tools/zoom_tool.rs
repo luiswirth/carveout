@@ -1,10 +1,19 @@
-use crate::{camera::Camera, input::InputManager};
+use crate::{
+  input::InputManager,
+  spaces::{Space, SpaceManager},
+};
 
-pub fn update_zoom_tool(input: &InputManager, camera: &mut Camera) {
-  if let Some(clicked_cursor_pos) = &input.cursor_pos_left_clicked {
-    if let Some(cursor_norm_diff) = input.cursor_screen_norm_difference() {
-      let scale_factor = 1.0 + cursor_norm_diff.y.0;
-      camera.zoom_with_center(scale_factor, clicked_cursor_pos.screen_pixel);
+pub fn update_zoom_tool(input: &InputManager, spaces: &mut SpaceManager) {
+  if let Some(center_screen_logical) = input.cursor_pos_screen_logical_left_clicked {
+    let center_canvas =
+      spaces.transform_point(center_screen_logical, Space::ScreenLogical, Space::Canvas);
+    if let Some(cursor_logical_diff) = input.cursor_screen_logical_difference() {
+      let cursor_norm_diff =
+        spaces.transform_vector(cursor_logical_diff, Space::ScreenLogical, Space::ScreenNorm);
+      let scale_factor = 1.0 + cursor_norm_diff.y;
+      spaces
+        .camera_mut()
+        .zoom_with_center(scale_factor, center_canvas);
     }
   }
 }

@@ -1,6 +1,6 @@
 use super::stroke::StrokeRenderer;
 
-use crate::{camera::Camera, stroke::StrokeManager};
+use crate::{spaces::SpaceManager, stroke::StrokeManager};
 
 pub struct CanvasRenderer {
   stroke_renderer: StrokeRenderer,
@@ -12,23 +12,20 @@ impl CanvasRenderer {
     Self { stroke_renderer }
   }
 
-  pub fn prepare(&mut self, _device: &wgpu::Device, queue: &wgpu::Queue, camera: &Camera) {
-    self.stroke_renderer.prepare(queue, camera);
+  pub fn prepare(&mut self, _device: &wgpu::Device, queue: &wgpu::Queue, spaces: &SpaceManager) {
+    self.stroke_renderer.prepare(queue, spaces);
   }
 
   pub fn render<'rp>(
     &'rp self,
     render_pass: &mut wgpu::RenderPass<'rp>,
-    scale_factor: f32,
-    camera: &Camera,
+    spaces: &SpaceManager,
     stroke_manager: &'rp StrokeManager,
   ) {
-    let mut viewport = camera.viewport;
-    viewport.min = (viewport.min.to_vec2() * scale_factor).to_pos2();
-    viewport.max = (viewport.max.to_vec2() * scale_factor).to_pos2();
+    let viewport = spaces.screen_rect().window_physical();
     render_pass.set_viewport(
-      viewport.min.x,
-      viewport.min.y,
+      viewport.min().x,
+      viewport.min().y,
       viewport.size().x,
       viewport.size().y,
       0.0,

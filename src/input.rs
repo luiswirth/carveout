@@ -1,20 +1,17 @@
-use crate::{camera::Camera, spaces::*};
-
 use std::collections::{HashMap, HashSet};
-use winit::{
-  event::{
-    ElementState, ModifiersState, MouseButton, MouseScrollDelta, VirtualKeyCode, WindowEvent,
-  },
-  window::Window,
+use winit::event::{
+  ElementState, ModifiersState, MouseButton, MouseScrollDelta, VirtualKeyCode, WindowEvent,
 };
+
+use crate::spaces::{Space, SpaceManager};
 
 #[derive(Default)]
 pub struct InputManager {
   pub prev: InputsSnapshot,
   pub curr: InputsSnapshot,
 
-  pub cursor_pos_left_clicked: Option<PointInSpaces>,
-  pub mouse_scroll_delta: Option<VectorInSpaces>,
+  pub cursor_pos_screen_logical_left_clicked: Option<na::Point2<f32>>,
+  pub mouse_scroll_delta_logical: Option<na::Vector2<f32>>,
   pub multi_touch_movement: Option<TouchMovement>,
 }
 
@@ -25,7 +22,7 @@ pub struct InputsSnapshot {
   pub touches: HashMap<TouchId, Touch>,
   pub multi_touch: Option<MultiTouch>,
   pub modifiers: ModifiersState,
-  pub cursor_pos: Option<PointInSpaces>,
+  pub cursor_pos_screen_logical: Option<na::Point2<f32>>,
 }
 
 #[allow(dead_code)]
@@ -112,59 +109,24 @@ impl InputManager {
     self.is_unclicked(button) && !self.was_unclicked(button)
   }
 
-  pub fn cursor_screen_pixel_difference(&self) -> Option<ScreenPixelVector> {
+  pub fn cursor_screen_logical_difference(&self) -> Option<na::Vector2<f32>> {
     if let Some((prev, curr)) = self
       .prev
-      .cursor_pos
+      .cursor_pos_screen_logical
       .as_ref()
-      .map(|p| p.screen_pixel)
-      .zip(self.curr.cursor_pos.as_ref().map(|p| p.screen_pixel))
+      .zip(self.curr.cursor_pos_screen_logical.as_ref())
     {
       Some(curr - prev)
     } else {
       None
     }
-  }
-
-  pub fn cursor_screen_norm_difference(&self) -> Option<ScreenNormVector> {
-    if let Some((prev, curr)) = self
-      .prev
-      .cursor_pos
-      .as_ref()
-      .map(|p| p.screen_norm)
-      .zip(self.curr.cursor_pos.as_ref().map(|p| p.screen_norm))
-    {
-      Some(curr - prev)
-    } else {
-      None
-    }
-  }
-
-  pub fn cursor_canvas_difference(&self) -> Option<CanvasVector> {
-    if let Some((prev, curr)) = self
-      .prev
-      .cursor_pos
-      .as_ref()
-      .map(|p| p.canvas)
-      .zip(self.curr.cursor_pos.as_ref().map(|p| p.canvas))
-    {
-      Some(curr - prev)
-    } else {
-      None
-    }
-  }
-
-  pub fn cursor_screen_distance_sqr(&self) -> Option<ScreenPixelUnit> {
-    self
-      .cursor_screen_pixel_difference()
-      .map(|d| d.magnitude_squared())
   }
 }
 
 #[derive(Debug)]
 pub struct TouchMovement {
-  pub center: PointInSpaces,
-  pub translation: VectorInSpaces,
+  pub center_screen_logical: na::Point2<f32>,
+  pub translation_screen_logical: na::Vector2<f32>,
   pub rotation: f32,
   pub scale: f32,
 }
@@ -173,10 +135,10 @@ pub struct TouchMovement {
 impl InputManager {
   pub fn reset(&mut self) {
     self.prev = self.curr.clone();
-    self.mouse_scroll_delta = None;
+    self.mouse_scroll_delta_logical = None;
   }
 
-  pub fn handle_event(&mut self, event: &WindowEvent, window: &Window, camera: &Camera) {
+  pub fn handle_event(&mut self, event: &WindowEvent, spaces: &SpaceManager) {
     let store = &mut self.curr;
     match event {
       WindowEvent::MouseInput { state, button, .. } => {
@@ -186,7 +148,7 @@ impl InputManager {
           }
           ElementState::Released => {
             store.clicked.remove(button);
-            self.cursor_pos_left_clicked = None;
+            self.cursor_pos_screen_logical_left_clicked = None;
           }
         };
       }
@@ -207,42 +169,38 @@ impl InputManager {
       WindowEvent::ModifiersChanged(modifiers) => {
         store.modifiers = *modifiers;
       }
-      WindowEvent::CursorLeft { .. } => self.curr.cursor_pos = None,
-      WindowEvent::CursorMoved {
-        position: physical_position,
-        ..
-      } => {
-        self.curr.cursor_pos = Some(PointInSpaces::from_window_physical(
-          *physical_position,
-          window,
-          camera,
+      WindowEvent::CursorLeft { .. } => self.curr.cursor_pos_screen_logical = None,
+      WindowEvent::CursorMoved { position, .. } => {
+        self.curr.cursor_pos_screen_logical = Some(spaces.transform_point(
+          na::point![position.x as f32, position.y as f32],
+          Space::WindowPhysical,
+          Space::ScreenLogical,
         ));
 
-        if self.is_clicked(MouseButton::Left) && self.cursor_pos_left_clicked.is_none() {
-          self.cursor_pos_left_clicked = self.curr.cursor_pos.clone();
+        if self.is_clicked(MouseButton::Left)
+          && self.cursor_pos_screen_logical_left_clicked.is_none()
+        {
+          self.cursor_pos_screen_logical_left_clicked = self.curr.cursor_pos_screen_logical;
         }
       }
 
       WindowEvent::MouseWheel { delta, .. } => {
         const LINE_DELTA: f32 = 10.0;
-        let screen_pixel = match *delta {
+        let window_physical = match *delta {
           MouseScrollDelta::LineDelta(mut x, mut y) => {
             x *= LINE_DELTA;
             y *= LINE_DELTA;
-            ScreenPixelVector::new(x.into(), y.into())
+            na::vector![x, y]
           }
           MouseScrollDelta::PixelDelta(delta) => {
-            let delta = delta.to_logical(window.scale_factor());
-            ScreenPixelVector::from_window_logical(delta)
+            na::vector![delta.x as f32, delta.y as f32]
           }
         };
-        let screen_norm = ScreenNormVector::from_screen_pixel(screen_pixel, camera);
-        let canvas = CanvasVector::from_screen_pixel(screen_pixel, camera);
-        self.mouse_scroll_delta = Some(VectorInSpaces {
-          screen_pixel,
-          screen_norm,
-          canvas,
-        });
+        self.mouse_scroll_delta_logical = Some(spaces.transform_vector(
+          window_physical,
+          Space::WindowPhysical,
+          Space::ScreenLogical,
+        ));
       }
       WindowEvent::Touch(winit::event::Touch {
         phase,
@@ -251,8 +209,12 @@ impl InputManager {
         ..
       }) => {
         use winit::event::TouchPhase;
-        let position = PointInSpaces::from_window_physical(*location, window, camera);
-        let touch = Touch { position };
+        let location = na::point![location.x as f32, location.y as f32];
+        let position_screen_logical =
+          spaces.transform_point(location, Space::WindowPhysical, Space::ScreenLogical);
+        let touch = Touch {
+          position_screen_logical,
+        };
         match phase {
           TouchPhase::Started => {
             store.touches.insert(*id, touch);
@@ -266,25 +228,23 @@ impl InputManager {
     };
   }
 
-  pub fn update(&mut self, camera: &Camera) {
-    self.curr.update(camera);
-    self.multi_touch_movement = self.compute_touch_movement(camera);
+  pub fn update(&mut self) {
+    self.curr.multi_touch = self.curr.compute_multi_touch();
+    self.multi_touch_movement = self.compute_touch_movement();
   }
 
-  fn compute_touch_movement(&mut self, camera: &Camera) -> Option<TouchMovement> {
+  fn compute_touch_movement(&mut self) -> Option<TouchMovement> {
     let prev = self.prev.multi_touch.as_ref()?;
     let curr = self.curr.multi_touch.as_ref()?;
-    let translation = curr.avg_pos.screen_pixel - prev.avg_pos.screen_pixel;
-    let translation = VectorInSpaces::from_screen_pixel(translation, camera);
+    let translation_screen_logical = curr.avg_pos_screen_logical - prev.avg_pos_screen_logical;
     let rotation = (curr.heading - prev.heading).rem_euclid(std::f32::consts::TAU);
-    let scale = curr.avg_dist / prev.avg_dist;
-    let scale = scale.into();
+    let scale = curr.avg_dist_screen_logical / prev.avg_dist_screen_logical;
 
-    let center = curr.avg_pos.clone();
+    let center_screen_logical = curr.avg_pos_screen_logical;
 
     Some(TouchMovement {
-      center,
-      translation,
+      center_screen_logical,
+      translation_screen_logical,
       rotation,
       scale,
     })
@@ -292,41 +252,25 @@ impl InputManager {
 }
 
 impl InputsSnapshot {
-  fn update(&mut self, camera: &Camera) {
-    if let Some(cursor_pos) = &mut self.cursor_pos {
-      cursor_pos.canvas = CanvasPoint::from_screen_pixel(cursor_pos.screen_pixel, camera);
-    }
-    self.multi_touch = self.compute_multi_touch(camera);
-  }
-
-  fn compute_multi_touch(&self, camera: &Camera) -> Option<MultiTouch> {
+  fn compute_multi_touch(&self) -> Option<MultiTouch> {
     if self.touches.len() == 2 {
-      let recip = 1.0 / 2.0;
-
       let [t0, t1] = {
         let mut ts = self
           .touches
           .values()
-          .map(|t| t.position.screen_pixel)
+          .map(|t| t.position_screen_logical)
           .take(2);
         [ts.next().unwrap(), ts.next().unwrap()]
       };
 
-      let avg_pos = ScreenPixelPoint::from((t0.coords + t1.coords).scale(recip.into()));
-      let avg_pos = PointInSpaces::from_screen_pixel(avg_pos, camera);
-
-      let mut avg_dist = ScreenPixelUnit::new(0.0);
-      for t in [t0, t1] {
-        avg_dist += (avg_pos.screen_pixel - t).magnitude();
-      }
-      avg_dist *= recip.into();
-
-      let diff = (t1 - t0).cast::<f32>();
+      let avg_pos = na::Point2::from((t0.coords + t1.coords) / 2.0);
+      let avg_dist = ((avg_pos - t0).magnitude() + (avg_pos - t1).magnitude()) / 2.0;
+      let diff = t1 - t0;
       let heading = diff.y.atan2(diff.x);
 
       Some(MultiTouch {
-        avg_pos,
-        avg_dist,
+        avg_pos_screen_logical: avg_pos,
+        avg_dist_screen_logical: avg_dist,
         heading,
       })
     } else {
@@ -339,12 +283,12 @@ type TouchId = u64;
 
 #[derive(Clone, Debug)]
 pub struct Touch {
-  pub position: PointInSpaces,
+  pub position_screen_logical: na::Point2<f32>,
 }
 
 #[derive(Debug, Clone)]
 pub struct MultiTouch {
-  avg_pos: PointInSpaces,
-  avg_dist: ScreenPixelUnit,
+  avg_pos_screen_logical: na::Point2<f32>,
+  avg_dist_screen_logical: f32,
   heading: f32,
 }

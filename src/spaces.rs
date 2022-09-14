@@ -1,207 +1,232 @@
-use crate::camera::Camera;
+mod camera;
+mod screen_rect;
 
-use typed_spaces::{SpacePoint, SpaceUnit, SpaceVector};
-use winit::window::Window;
+use self::{camera::Camera, screen_rect::ScreenRect};
 
-/// Space representing the pixelated canvas screen.
-/// One Unit is one logical canvas screen pixel, therefore square.
-/// Origin is top left corner of screen.
-pub struct ScreenPixelSpace;
-pub type ScreenPixelUnit = SpaceUnit<ScreenPixelSpace>;
-pub type ScreenPixelPoint = SpacePoint<ScreenPixelSpace>;
-pub type ScreenPixelVector = SpaceVector<ScreenPixelSpace>;
+use crate::{input::InputManager, math::Rect};
 
-/// Space representing the normalized canvas screen.
-/// One Unit is half the screen along an axis, therefore not square.
-/// Origin is the center the of screen.
-/// This is the same as normalized device coordinates or clip space.
-pub struct ScreenNormSpace;
-//pub type ScreenNormUnit = SpaceUnit<ScreenNormSpace>;
-pub type ScreenNormPoint = SpacePoint<ScreenNormSpace>;
-pub type ScreenNormVector = SpaceVector<ScreenNormSpace>;
-
-/// Space representing canvas space.
-pub struct CanvasSpace;
-//pub type CanvasUnit = SpaceUnit<CanvasSpace>;
-pub type CanvasPoint = SpacePoint<CanvasSpace>;
-pub type CanvasVector = SpaceVector<CanvasSpace>;
-
-pub trait ScreenPixelPointExt
-where
-  Self: Sized,
-{
-  fn is_in_screen(&self, camera: &Camera) -> bool;
-
-  fn from_window_logical(point: winit::dpi::LogicalPosition<f64>, camera: &Camera) -> Self;
-  fn into_egui(self, camera: &Camera) -> egui::Pos2;
-  fn from_canvas(point: CanvasPoint, camera: &Camera) -> Self;
+#[allow(dead_code)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Space {
+  /// window physical pixels coordinate system.
+  /// origin upper left corner
+  /// units in physical pixels (square)
+  /// same as winit physical
+  WindowPhysical,
+  /// window logical pixels coordinate system.
+  /// origin upper left corner
+  /// units in logical pixels (square)
+  /// same as winit logical and egui
+  WindowLogical,
+  /// canvas screen physical pixels coordinate system.
+  /// origin upper left corner
+  /// units in physical pixels (square)
+  ScreenPhysical,
+  /// canvas screen logical pixels coordinate system.
+  /// origin upper left corner
+  /// units in logical pixels (square)
+  ScreenLogical,
+  /// canvas normalized coordinate system.
+  /// origin center
+  /// units normalized [-1,+1]x[-1,+1] (non square)
+  /// same as gfx screen clip space / normalized device coordinates
+  ScreenNorm,
+  /// camera view coordinate system.
+  /// origin camera position
+  /// units canvas
+  /// same as gfx view (square)
+  CanvasView,
+  /// canvas coordinate system
+  /// origin center
+  /// units initially same as screen norm
+  Canvas,
 }
-impl ScreenPixelPointExt for ScreenPixelPoint {
-  fn is_in_screen(&self, camera: &Camera) -> bool {
-    let size = camera.viewport.size();
-    self.x.0 >= 0.0 && self.y.0 >= 0.0 && self.x.0 < size.x && self.y.0 < size.y
+
+/// holds data necessary for all relevant space transformations
+#[derive(Debug, Default)]
+pub struct SpaceManager {
+  camera: Camera,
+  screen_rect: ScreenRect,
+  scale_factor: f32,
+}
+
+impl SpaceManager {
+  pub fn update_camera_controller(&mut self, input_manager: &InputManager) {
+    camera::controller::update(self, input_manager);
   }
 
-  fn from_window_logical(point: winit::dpi::LogicalPosition<f64>, camera: &Camera) -> Self {
-    let point = point.cast::<f32>();
-    let screen_min = camera.viewport.min;
-    na::Point2::new(point.x - screen_min.x, point.y - screen_min.y).cast()
-  }
+  pub fn update_screen_rect(&mut self, new_egui_rect: egui::Rect) {
+    let size_logical = mint::Vector2::from(new_egui_rect.size()).into();
+    let center_window_logical = mint::Point2::from(new_egui_rect.center()).into();
+    let window_logical = Rect::from_size_center(size_logical, center_window_logical);
+    let screen_logical = Rect::from_size_min(size_logical, na::Point::origin());
 
-  fn into_egui(self, camera: &Camera) -> egui::Pos2 {
-    let point = self.cast::<f32>();
-    let screen_min = camera.viewport.min;
-    egui::Pos2::new(point.x + screen_min.x, point.y + screen_min.y)
-  }
+    let logical_to_physical = self.logical_to_physical();
+    let size_physical = logical_to_physical * size_logical;
+    let center_window_physical = logical_to_physical * center_window_logical;
+    let window_physical = Rect::from_size_center(size_physical, center_window_physical);
+    let screen_physical = Rect::from_size_min(size_physical, na::Point::origin());
 
-  fn from_canvas(canvas_point: CanvasPoint, camera: &Camera) -> Self {
-    let canvas_point = canvas_point.cast();
-    let view_point = camera.canvas_to_view().transform_point(&canvas_point);
-    let screen_norm_point = camera.view_to_screen_norm().transform_point(&view_point);
-    let screen_pixel_point = camera
-      .screen_norm_to_pixel()
-      .transform_point(&screen_norm_point);
-    screen_pixel_point.cast()
-  }
-}
+    let screen_norm = Rect::from_extents_half_center(na::vector![1.0, 1.0], na::Point::origin());
 
-pub trait ScreenPixelVectorExt {
-  fn from_window_logical(point: winit::dpi::LogicalPosition<f64>) -> Self;
+    let extents_half_canvas = self.screen_norm_to_canvas_view() * na::vector![1.0, 1.0];
+    let canvas_view = Rect::from_extents_half_center(extents_half_canvas, na::Point::origin());
 
-  fn from_canvas(canvas_vector: CanvasVector, camera: &Camera) -> Self;
-}
-impl ScreenPixelVectorExt for ScreenPixelVector {
-  fn from_window_logical(point: winit::dpi::LogicalPosition<f64>) -> Self {
-    let point = point.cast::<f32>();
-    na::Vector2::new(point.x, point.y).cast()
-  }
+    let center_canvas = self.view_to_canvas() * na::Point::origin();
+    let angle_canvas = self.camera.angle;
+    let canvas = Rect {
+      extents_half: extents_half_canvas,
+      center: center_canvas,
+      angle: angle_canvas,
+    };
 
-  fn from_canvas(canvas_vector: CanvasVector, camera: &Camera) -> Self {
-    let canvas_vector = canvas_vector.cast();
-    let view_vector = camera.canvas_to_view().transform_vector(&canvas_vector);
-    let screen_norm_vector = camera.view_to_screen_norm() * view_vector;
-    let screen_pixel_vector = camera
-      .screen_norm_to_pixel()
-      .transform_vector(&screen_norm_vector);
-    screen_pixel_vector.cast()
-  }
-}
-
-pub trait ScreenNormPointExt {
-  fn from_screen_pixel(screen_pixel_point: ScreenPixelPoint, camera: &Camera) -> Self;
-}
-impl ScreenNormPointExt for ScreenNormPoint {
-  fn from_screen_pixel(screen_pixel_point: ScreenPixelPoint, camera: &Camera) -> Self {
-    camera
-      .screen_norm_to_pixel()
-      .inverse_transform_point(&screen_pixel_point.cast())
-      .cast()
-  }
-}
-
-pub trait ScreenNormVectorExt {
-  fn from_screen_pixel(screen_pixel_vector: ScreenPixelVector, camera: &Camera) -> Self;
-}
-impl ScreenNormVectorExt for ScreenNormVector {
-  fn from_screen_pixel(screen_pixel_vector: ScreenPixelVector, camera: &Camera) -> Self {
-    camera
-      .screen_norm_to_pixel()
-      .inverse_transform_vector(&screen_pixel_vector.cast())
-      .cast()
-  }
-}
-
-pub trait CanvasPointExt {
-  fn from_screen_pixel(screen_pixel_point: ScreenPixelPoint, camera: &Camera) -> Self;
-}
-impl CanvasPointExt for CanvasPoint {
-  fn from_screen_pixel(screen_pixel_point: ScreenPixelPoint, camera: &Camera) -> Self {
-    let screen_pixel_point = screen_pixel_point.cast();
-    let screen_norm_point = camera
-      .screen_norm_to_pixel()
-      .inverse_transform_point(&screen_pixel_point);
-    let view_point = camera
-      .view_to_screen_norm()
-      .try_inverse_transform_point(&screen_norm_point)
-      .unwrap();
-    let canvas_point = camera.canvas_to_view().inverse_transform_point(&view_point);
-    canvas_point.cast()
-  }
-}
-
-pub trait CanvasVectorExt {
-  fn from_screen_pixel(screen_pixel_vector: ScreenPixelVector, camera: &Camera) -> Self;
-  fn from_screen_norm(screen_norm_vector: ScreenNormVector, camera: &Camera) -> Self;
-}
-impl CanvasVectorExt for CanvasVector {
-  fn from_screen_pixel(screen_pixel_vector: ScreenPixelVector, camera: &Camera) -> Self {
-    let screen_pixel_vector = screen_pixel_vector.cast();
-    let screen_norm_vector = camera
-      .screen_norm_to_pixel()
-      .inverse_transform_vector(&screen_pixel_vector);
-    let view_vector = camera.view_to_screen_norm().try_inverse().unwrap() * screen_norm_vector;
-    let canvas_vector = camera
-      .canvas_to_view()
-      .inverse_transform_vector(&view_vector);
-    canvas_vector.cast()
-  }
-
-  fn from_screen_norm(screen_norm_vector: ScreenNormVector, camera: &Camera) -> Self {
-    let screen_norm_vector = screen_norm_vector.cast();
-    let view_vector = camera.view_to_screen_norm().try_inverse().unwrap() * screen_norm_vector;
-    let canvas_vector = camera
-      .canvas_to_view()
-      .inverse_transform_vector(&view_vector);
-    canvas_vector.cast()
-  }
-}
-
-#[derive(Clone, Debug)]
-pub struct PointInSpaces {
-  pub screen_pixel: ScreenPixelPoint,
-  pub screen_norm: ScreenNormPoint,
-  pub canvas: CanvasPoint,
-  pub in_screen: bool,
-}
-impl PointInSpaces {
-  pub fn from_window_physical(
-    window_physical: winit::dpi::PhysicalPosition<f64>,
-    window: &Window,
-    camera: &Camera,
-  ) -> Self {
-    let window_logical = window_physical.to_logical(window.scale_factor());
-    let screen_pixel = ScreenPixelPoint::from_window_logical(window_logical, camera);
-    Self::from_screen_pixel(screen_pixel, camera)
-  }
-
-  pub fn from_screen_pixel(screen_pixel: ScreenPixelPoint, camera: &Camera) -> Self {
-    let screen_norm = ScreenNormPoint::from_screen_pixel(screen_pixel, camera);
-    let canvas = CanvasPoint::from_screen_pixel(screen_pixel, camera);
-    let in_screen = screen_pixel.is_in_screen(camera);
-
-    Self {
-      screen_pixel,
+    self.screen_rect = ScreenRect {
+      window_physical,
+      window_logical,
+      screen_physical,
+      screen_logical,
       screen_norm,
+      canvas_view,
       canvas,
-      in_screen,
+    };
+  }
+
+  pub fn update_scale_factor(&mut self, scale_factor: f32) {
+    self.scale_factor = scale_factor;
+  }
+
+  pub fn camera(&self) -> &Camera {
+    &self.camera
+  }
+
+  pub fn camera_mut(&mut self) -> &mut Camera {
+    &mut self.camera
+  }
+
+  pub fn screen_rect(&self) -> &ScreenRect {
+    &self.screen_rect
+  }
+}
+
+#[allow(dead_code)]
+impl SpaceManager {
+  pub fn physical_to_logical(&self) -> na::Scale2<f32> {
+    na::Scale2::new(1.0 / self.scale_factor, 1.0 / self.scale_factor)
+  }
+  pub fn logical_to_physical(&self) -> na::Scale2<f32> {
+    na::Scale2::new(self.scale_factor, self.scale_factor)
+  }
+
+  pub fn window_to_screen_logical(&self) -> na::Translation2<f32> {
+    na::Translation2::from(-self.screen_rect.window_logical().min().coords)
+  }
+  pub fn screen_to_window_logical(&self) -> na::Translation2<f32> {
+    na::Translation2::from(self.screen_rect.window_logical().min().coords)
+  }
+
+  pub fn window_to_screen_physical(&self) -> na::Translation2<f32> {
+    na::Translation2::from(-self.screen_rect.window_physical().min().coords)
+  }
+  pub fn screen_to_window_physical(&self) -> na::Translation2<f32> {
+    na::Translation2::from(self.screen_rect.window_physical().min().coords)
+  }
+
+  pub fn screen_logical_to_norm(&self) -> na::Affine2<f32> {
+    let size = self.screen_rect.screen_logical().size();
+    let scale = na::Scale2::new(2.0 / size.x, 2.0 / size.y);
+    let translation = na::Translation2::new(-1.0, -1.0);
+
+    let scale: na::Affine2<f32> = na::convert(scale);
+    let translation: na::Affine2<f32> = na::convert(translation);
+    translation * scale
+  }
+  // gfx: viewport transform
+  pub fn screen_norm_to_logical(&self) -> na::Affine2<f32> {
+    let translation = na::Translation2::new(1.0, 1.0);
+    let size = self.screen_rect.screen_logical().size();
+    let scale = na::Scale2::new(size.x / 2.0, size.y / 2.0);
+
+    let translation: na::Affine2<f32> = na::convert(translation);
+    let scale: na::Affine2<f32> = na::convert(scale);
+    scale * translation
+  }
+
+  pub fn screen_norm_to_canvas_view(&self) -> na::Scale2<f32> {
+    let screen_aspect_scale = na::Scale2::from(self.screen_rect.size_norm_w());
+    let camera_zoom = na::Scale2::new(1.0 / self.camera.zoom, 1.0 / self.camera.zoom);
+    camera_zoom * screen_aspect_scale
+  }
+  // gfx: projection (mvP)
+  pub fn canvas_view_to_screen_norm(&self) -> na::Scale2<f32> {
+    let camera_zoom = na::Scale2::new(self.camera.zoom, self.camera.zoom);
+    let screen_aspect_scale = na::Scale2::from(self.screen_rect.size_norm_w().map(|e| 1.0 / e));
+    screen_aspect_scale * camera_zoom
+  }
+
+  pub fn view_to_canvas(&self) -> na::IsometryMatrix2<f32> {
+    let rotation = na::Rotation2::new(self.camera.angle);
+    let translation = na::Translation2::from(self.camera.position_canvas);
+    translation * rotation
+  }
+  /// gfx: view transform (mVp)
+  pub fn canvas_to_view(&self) -> na::IsometryMatrix2<f32> {
+    let translation = na::Translation2::from(-self.camera.position_canvas);
+    let rotation = na::Rotation2::new(-self.camera.angle);
+    rotation * translation
+  }
+}
+
+macro_rules! natrans {
+  ($t:expr) => {
+    na::convert::<_, na::Transform2<f32>>($t)
+  };
+}
+
+impl SpaceManager {
+  pub fn transform_point(&self, point: na::Point2<f32>, src: Space, dst: Space) -> na::Point2<f32> {
+    use Space::*;
+    match [src, dst] {
+      [ScreenLogical, Canvas] => {
+        natrans!(self.view_to_canvas())
+          * natrans!(self.screen_norm_to_canvas_view())
+          * natrans!(self.screen_logical_to_norm())
+          * point
+      }
+      [Canvas, ScreenLogical] => {
+        natrans!(self.screen_norm_to_logical())
+          * natrans!(self.canvas_view_to_screen_norm())
+          * natrans!(self.canvas_to_view())
+          * point
+      }
+      [WindowPhysical, ScreenLogical] => {
+        natrans!(self.window_to_screen_logical()) * natrans!(self.physical_to_logical()) * point
+      }
+      [ScreenLogical, WindowLogical] => natrans!(self.screen_to_window_logical()) * point,
+      _ => unimplemented!("`transform_point` from {src:?} to {dst:?} unimplemented.",),
     }
   }
-}
-
-#[derive(Clone, Debug)]
-pub struct VectorInSpaces {
-  pub screen_pixel: ScreenPixelVector,
-  pub screen_norm: ScreenNormVector,
-  pub canvas: CanvasVector,
-}
-impl VectorInSpaces {
-  pub fn from_screen_pixel(screen_pixel: ScreenPixelVector, camera: &Camera) -> Self {
-    let screen_norm = ScreenNormVector::from_screen_pixel(screen_pixel, camera);
-    let canvas = CanvasVector::from_screen_pixel(screen_pixel, camera);
-    Self {
-      screen_pixel,
-      screen_norm,
-      canvas,
+  pub fn transform_vector(
+    &self,
+    vector: na::Vector2<f32>,
+    src: Space,
+    dst: Space,
+  ) -> na::Vector2<f32> {
+    use Space::*;
+    match [src, dst] {
+      [ScreenLogical, Canvas] => {
+        natrans!(self.view_to_canvas())
+          * natrans!(self.screen_norm_to_canvas_view())
+          * natrans!(self.screen_logical_to_norm())
+          * vector
+      }
+      [ScreenNorm, Canvas] => {
+        natrans!(self.view_to_canvas()) * natrans!(self.screen_norm_to_canvas_view()) * vector
+      }
+      [WindowPhysical, ScreenLogical] => {
+        natrans!(self.physical_to_logical()) * natrans!(self.window_to_screen_logical()) * vector
+      }
+      [ScreenLogical, ScreenNorm] => self.screen_logical_to_norm() * vector,
+      _ => unimplemented!("`transform_vector` from {src:?} to {dst:?} unimplemented.",),
     }
   }
 }

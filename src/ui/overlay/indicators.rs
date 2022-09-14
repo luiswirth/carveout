@@ -4,7 +4,7 @@ pub fn ui_indicators(ui: &egui::Ui, ui_access: &mut UiAccess, screen: egui::Rect
   let painter = ui.painter();
 
   let width = 3.0;
-  let direction = -ui_access.camera.angle;
+  let direction = -ui_access.spaces.camera().angle;
   let direction = egui::Vec2::angled(direction);
   let length = 50.0;
 

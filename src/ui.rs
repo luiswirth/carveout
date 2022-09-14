@@ -1,4 +1,4 @@
-mod canvas;
+pub mod canvas;
 mod overlay;
 mod sidebar;
 
@@ -22,7 +22,7 @@ impl Ui {
 }
 
 pub struct UiAccess<'a> {
-  pub camera: &'a mut crate::Camera,
+  pub spaces: &'a mut crate::SpaceManager,
   pub content_manager: &'a mut crate::ContentManager,
   pub tool_manager: &'a mut crate::ToolManager,
   pub stroke_manager: &'a mut crate::StrokeManager,

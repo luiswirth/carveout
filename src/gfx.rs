@@ -4,7 +4,7 @@ pub mod ui;
 
 mod mesh;
 
-use crate::{camera::Camera, stroke::StrokeManager};
+use crate::{spaces::SpaceManager, stroke::StrokeManager};
 
 use self::{canvas::CanvasRenderer, ui::UiRenderer};
 
@@ -41,11 +41,11 @@ impl Gfx {
     egui_shapes: Vec<egui::epaint::ClippedShape>,
     egui_textures_delta: egui::TexturesDelta,
 
-    camera: &Camera,
+    space_transform: &SpaceManager,
   ) {
     self
       .canvas_renderer
-      .prepare(&self.wgpu.device, &self.wgpu.queue, camera);
+      .prepare(&self.wgpu.device, &self.wgpu.queue, space_transform);
     self.ui_renderer.prepare(
       window,
       &self.wgpu.device,
@@ -56,7 +56,7 @@ impl Gfx {
     );
   }
 
-  pub fn render(&mut self, scale_factor: f32, camera: &Camera, stroke_manager: &StrokeManager) {
+  pub fn render(&mut self, spaces: &SpaceManager, stroke_manager: &StrokeManager) {
     let surface_texture = match self.wgpu.surface.get_current_texture() {
       Ok(frame) => frame,
       Err(wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated) => {
@@ -99,7 +99,7 @@ impl Gfx {
 
       self
         .canvas_renderer
-        .render(&mut render_pass, scale_factor, camera, stroke_manager);
+        .render(&mut render_pass, spaces, stroke_manager);
       self.ui_renderer.render(&mut render_pass);
     }
 

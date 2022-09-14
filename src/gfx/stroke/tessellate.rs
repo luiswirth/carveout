@@ -9,7 +9,7 @@ use lyon::{
 };
 use palette::LinSrgba;
 
-const DEFAULT_STROKE_WIDTH: f32 = 1.0;
+const DEFAULT_STROKE_WIDTH: f32 = 0.005;
 const STROKE_WIDTH_ATTRIBUTE: lyon::path::AttributeIndex = 0;
 
 #[derive(Default)]
@@ -22,7 +22,7 @@ impl StrokeTessellator {
     let mut points = stroke
       .points()
       .iter()
-      .map(|p| lyon::geom::Point::new(p.x.0, p.y.0));
+      .map(|p| lyon::geom::Point::new(p.x, p.y));
     let mut builder = Path::builder_with_attributes(1);
     let first_point = points.next().unwrap();
     builder.begin(first_point, &[DEFAULT_STROKE_WIDTH]);

@@ -11,7 +11,9 @@ use self::{
   translate_tool::update_translate_tool, zoom_tool::update_zoom_tool,
 };
 
-use crate::{camera::Camera, content::ContentManager, input::InputManager, stroke::StrokeManager};
+use crate::{
+  content::ContentManager, input::InputManager, spaces::SpaceManager, stroke::StrokeManager,
+};
 
 use palette::LinSrgb;
 
@@ -59,7 +61,7 @@ impl Default for PenConfig {
 impl ToolManager {
   pub fn update(
     &mut self,
-    camera: &mut Camera,
+    spaces: &mut SpaceManager,
     input: &InputManager,
     content_manager: &mut ContentManager,
     stroke_manager: &StrokeManager,
@@ -67,16 +69,16 @@ impl ToolManager {
     match self.selected {
       ToolEnum::Pen => self
         .pen
-        .update(input, content_manager, &self.configs.pen, camera),
-      ToolEnum::Eraser => update_eraser(input, content_manager, stroke_manager),
+        .update(input, content_manager, &self.configs.pen, spaces),
+      ToolEnum::Eraser => update_eraser(input, content_manager, stroke_manager, spaces),
       ToolEnum::SelectLoop => {
         self
           .select_loop
-          .update(camera, input, content_manager, stroke_manager)
+          .update(spaces, input, content_manager, stroke_manager)
       }
-      ToolEnum::Translate => update_translate_tool(input, camera),
-      ToolEnum::Rotate => update_rotate_tool(input, camera),
-      ToolEnum::Zoom => update_zoom_tool(input, camera),
+      ToolEnum::Translate => update_translate_tool(input, spaces),
+      ToolEnum::Rotate => update_rotate_tool(input, spaces),
+      ToolEnum::Zoom => update_zoom_tool(input, spaces),
     }
   }
 }

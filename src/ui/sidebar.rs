@@ -129,27 +129,27 @@ impl SidebarUi {
           ToolEnum::SelectLoop => {}
           ToolEnum::Translate => {
             ui.label("Translate options");
-            let position = &mut ui_access.camera.position;
+            let position = &mut ui_access.spaces.camera_mut().position_canvas;
             ui.vertical(|ui| {
               const SPEED: f32 = 0.001;
               ui.horizontal(|ui| {
                 ui.colored_label(egui::Color32::RED, "X:");
-                ui.add(egui::DragValue::new(&mut position.x.0).speed(SPEED));
+                ui.add(egui::DragValue::new(&mut position.x).speed(SPEED));
               });
               ui.horizontal(|ui| {
                 ui.colored_label(egui::Color32::BLUE, "Y:");
-                ui.add(egui::DragValue::new(&mut position.y.0).speed(SPEED));
+                ui.add(egui::DragValue::new(&mut position.y).speed(SPEED));
               });
             });
           }
           ToolEnum::Rotate => {
             ui.label("Rotate options");
-            let rotation = &mut ui_access.camera.angle;
+            let rotation = &mut ui_access.spaces.camera_mut().angle;
             ui.add(egui::Slider::new(rotation, 0.0..=std::f32::consts::TAU));
           }
           ToolEnum::Zoom => {
             ui.label("Scale options");
-            let zoom = &mut ui_access.camera.zoom;
+            let zoom = &mut ui_access.spaces.camera_mut().zoom;
             const SPEED_MUL: f32 = 0.003;
             let speed = *zoom * SPEED_MUL;
             ui.add(

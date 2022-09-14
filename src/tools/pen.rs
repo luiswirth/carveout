@@ -1,5 +1,4 @@
 use crate::{
-  camera::Camera,
   content::{command::AddStrokeCommand, ContentManager, StrokeId},
   input::InputManager,
   spaces::*,
@@ -9,11 +8,9 @@ use crate::{
 
 use winit::event::MouseButton;
 
-const TOLERANCE: ScreenPixelUnit = ScreenPixelUnit::new(1.0);
-
 #[derive(Default)]
 pub struct Pen {
-  prev_point: Option<CanvasPoint>,
+  prev_point_canvas: Option<na::Point2<f32>>,
   stroke: Option<StrokeId>,
 }
 
@@ -23,13 +20,13 @@ impl Pen {
     input: &InputManager,
     content_manager: &mut ContentManager,
     pen_config: &PenConfig,
-    camera: &Camera,
+    spaces: &SpaceManager,
   ) {
     if input.got_unclicked(MouseButton::Left) {
       self.finish_stroke()
     }
     if input.is_clicked(MouseButton::Left) {
-      self.sample_stroke(input, content_manager, pen_config, camera)
+      self.sample_stroke(input, content_manager, pen_config, spaces)
     }
   }
 
@@ -38,17 +35,24 @@ impl Pen {
     input: &InputManager,
     content_manager: &mut ContentManager,
     pen_config: &PenConfig,
-    camera: &Camera,
+    spaces: &SpaceManager,
   ) {
-    if let Some(curr_point) = input.curr.cursor_pos.as_ref().map(|c| c.canvas) {
-      if let Some(prev_point) = self.prev_point {
-        let diff = curr_point - prev_point;
-        let diff = ScreenPixelVector::from_canvas(diff, camera);
-        let dist = diff.magnitude_squared();
-        if dist > TOLERANCE * TOLERANCE {
+    if let Some(curr_point_screen_logical) = input.curr.cursor_pos_screen_logical.to_owned() {
+      let curr_point_canvas = spaces.transform_point(
+        curr_point_screen_logical,
+        Space::ScreenLogical,
+        Space::Canvas,
+      );
+      if let Some(prev_point_canvas) = self.prev_point_canvas {
+        let prev_point_screen_logical =
+          spaces.transform_point(prev_point_canvas, Space::Canvas, Space::ScreenLogical);
+        let diff_logical = curr_point_screen_logical - prev_point_screen_logical;
+        let dist_logical = diff_logical.magnitude_squared();
+        let tolerance_logical_sqr = 1.0;
+        if dist_logical > tolerance_logical_sqr {
           match self.stroke {
             None => {
-              let points = vec![prev_point, curr_point];
+              let points = vec![prev_point_canvas, curr_point_canvas];
               let stroke = Stroke::new(points, pen_config.color, pen_config.width);
               content_manager.run_cmd(AddStrokeCommand::new(stroke));
 
@@ -58,19 +62,19 @@ impl Pen {
             Some(stroke) => {
               let mut access_mut = content_manager.access_mut();
               let stroke = access_mut.modify_stroke(stroke);
-              stroke.add_point(curr_point);
+              stroke.add_point(curr_point_canvas);
             }
           }
-          self.prev_point = Some(curr_point);
+          self.prev_point_canvas = Some(curr_point_canvas);
         }
       } else {
-        self.prev_point = Some(curr_point);
+        self.prev_point_canvas = Some(curr_point_canvas);
       }
     }
   }
 
   fn finish_stroke(&mut self) {
-    self.prev_point = None;
+    self.prev_point_canvas = None;
     self.stroke = None;
   }
 }

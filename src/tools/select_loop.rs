@@ -1,8 +1,7 @@
 use crate::{
-  camera::Camera,
   content::{command::RemoveStrokesCommand, ContentManager, StrokeId},
   input::InputManager,
-  spaces::{CanvasPoint, CanvasPointExt, ScreenPixelPoint},
+  spaces::{Space, SpaceManager},
   stroke::StrokeManager,
 };
 
@@ -19,7 +18,7 @@ pub enum SelectLoop {
   #[default]
   Inactive,
   Selecting {
-    screen_points: Vec<ScreenPixelPoint>,
+    points_screen_logical: Vec<na::Point2<f32>>,
   },
   Selected {
     selected_strokes: Vec<StrokeId>,
@@ -28,7 +27,7 @@ pub enum SelectLoop {
 impl SelectLoop {
   pub fn update(
     &mut self,
-    camera: &Camera,
+    spaces: &SpaceManager,
     input: &InputManager,
     content_manager: &mut ContentManager,
     stroke_manager: &StrokeManager,
@@ -36,19 +35,21 @@ impl SelectLoop {
     if input.got_clicked(MouseButton::Left) {
       match self {
         SelectLoop::Inactive => {
-          if let Some(point) = &input.curr.cursor_pos {
-            let point = point.screen_pixel;
-            let screen_points = vec![point];
-            *self = SelectLoop::Selecting { screen_points };
+          if let Some(point) = input.curr.cursor_pos_screen_logical {
+            let points_screen_logical = vec![point];
+            *self = SelectLoop::Selecting {
+              points_screen_logical,
+            };
           }
         }
         _ => unreachable!(),
       }
     } else if input.is_clicked(MouseButton::Left) {
       match self {
-        SelectLoop::Selecting { screen_points } => {
-          if let Some(point) = &input.curr.cursor_pos {
-            let point = point.screen_pixel;
+        SelectLoop::Selecting {
+          points_screen_logical: screen_points,
+        } => {
+          if let Some(point) = input.curr.cursor_pos_screen_logical {
             screen_points.push(point);
           }
         }
@@ -56,8 +57,10 @@ impl SelectLoop {
       }
     } else if input.got_unclicked(MouseButton::Left) {
       match mem::replace(self, Self::Invalid) {
-        SelectLoop::Selecting { screen_points } => {
-          let selected_strokes = Self::get_selection(screen_points, stroke_manager, camera);
+        SelectLoop::Selecting {
+          points_screen_logical,
+        } => {
+          let selected_strokes = Self::get_selection(points_screen_logical, stroke_manager, spaces);
           *self = SelectLoop::Selected { selected_strokes };
         }
         _ => unreachable!("{:?}", self),
@@ -76,18 +79,18 @@ impl SelectLoop {
   }
 
   fn get_selection(
-    screen_points: Vec<ScreenPixelPoint>,
+    points_screen_logical: Vec<na::Point2<f32>>,
     stroke_manager: &StrokeManager,
-    camera: &Camera,
+    spaces: &SpaceManager,
   ) -> Vec<StrokeId> {
     let isometry = na::Isometry2::default();
 
-    let canvas_points: Vec<_> = screen_points
+    let canvas_points: Vec<_> = points_screen_logical
       .iter()
-      .map(|p| CanvasPoint::from_screen_pixel(*p, camera).cast())
+      .map(|p| spaces.transform_point(*p, Space::ScreenLogical, Space::Canvas))
       .collect();
     let params = vhacd::VHACDParameters::default();
-    let len = screen_points.len() as u32;
+    let len = points_screen_logical.len() as u32;
     let indices: Vec<_> = (0..len - 1)
       .map(|i| [i, i + 1])
       .chain(std::iter::once([len - 1, 0]))

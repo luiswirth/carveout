@@ -1,16 +1,15 @@
 use crate::{
-  camera::Camera,
   input::InputManager,
-  spaces::{CanvasVector, CanvasVectorExt},
+  spaces::{Space, SpaceManager},
 };
 
-pub fn update_translate_tool(input: &InputManager, camera: &mut Camera) {
+pub fn update_translate_tool(input: &InputManager, spaces: &mut SpaceManager) {
   if !input.is_clicked(winit::event::MouseButton::Left) {
     return;
   }
 
-  if let Some(cursor_diff) = input.cursor_screen_pixel_difference() {
-    let cursor_diff = CanvasVector::from_screen_pixel(cursor_diff, camera);
-    camera.position -= cursor_diff;
+  if let Some(cursor_diff) = input.cursor_screen_logical_difference() {
+    let cursor_diff = spaces.transform_vector(cursor_diff, Space::ScreenLogical, Space::Canvas);
+    spaces.camera_mut().position_canvas -= cursor_diff;
   }
 }

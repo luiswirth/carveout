@@ -4,7 +4,6 @@ use crate::{
     StrokeId,
   },
   gfx::stroke::{StrokeMeshGpu, StrokeTessellator},
-  spaces::*,
 };
 
 use palette::LinSrgb;
@@ -69,26 +68,26 @@ pub struct StrokeData {
 #[derive(Clone, serde::Serialize, serde::Deserialize)]
 pub struct Stroke {
   /// at least two points
-  points: Vec<CanvasPoint>,
+  points_canvas: Vec<na::Point2<f32>>,
   width_multiplier: f32,
   color: LinSrgb,
 }
 impl Stroke {
-  pub fn new(points: Vec<CanvasPoint>, color: LinSrgb, width_multiplier: f32) -> Self {
+  pub fn new(points: Vec<na::Point2<f32>>, color: LinSrgb, width_multiplier: f32) -> Self {
     assert!(points.len() >= 2);
     Self {
-      points,
+      points_canvas: points,
       color,
       width_multiplier,
     }
   }
 
-  pub fn add_point(&mut self, point: CanvasPoint) {
-    self.points.push(point);
+  pub fn add_point(&mut self, point: na::Point2<f32>) {
+    self.points_canvas.push(point);
   }
 
-  pub fn points(&self) -> &[CanvasPoint] {
-    &self.points
+  pub fn points(&self) -> &[na::Point2<f32>] {
+    &self.points_canvas
   }
 
   pub fn width_multiplier(&self) -> f32 {

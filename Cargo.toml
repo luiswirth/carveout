@@ -14,10 +14,10 @@ opt-level = 1
 opt-level = 3
 
 [dependencies]
-winit = "0.27.2"
+winit = { version = "0.27.2", features = [ "mint" ] }
 wgpu = { version = "0.13.1", features = [ "spirv" ] }
 
-egui = { version = "0.19.0", default-features = false, features = [ "tracing" ] }
+egui = { version = "0.19.0", default-features = false, features = [ "tracing", "mint" ] }
 egui-winit = { version = "0.19.0", default-features = false, features = [ "links" ] }
 egui-wgpu = "0.19.0"
 egui_file = "0.2.0"
@@ -25,9 +25,8 @@ egui_file = "0.2.0"
 lyon = "1.0.0"
 palette = { version = "0.6.0", features = [ "serializing" ] }
 
-nalgebra = { version = "0.31.1", features = [ "bytemuck", "serde-serialize" ] }
+nalgebra = { version = "0.31.1", features = [ "bytemuck", "serde-serialize", "convert-mint" ] }
 parry2d = "0.9.0"
-typed-spaces = { git = "https://github.com/lu15w1r7h/typed-spaces.git" }
 
 tracing = "0.1.26"
 tracing-subscriber = "0.3.15"
@@ -39,6 +38,7 @@ encase = { version = "0.3.0", features = [ "nalgebra" ] }
 bytemuck = { version = "1.7.2", features = [ "derive" ] }
 chrono = { version = "0.4.19", features = [ "serde" ] }
 directories = "4.0.1"
+mint = "0.5.9"
 
 futures = "0.3.16"
 once_cell = "1.13.0"

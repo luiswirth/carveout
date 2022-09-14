@@ -1,3 +1,5 @@
+#![allow(clippy::new_ret_no_self)]
+
 use std::mem;
 
 use crate::stroke::Stroke;
