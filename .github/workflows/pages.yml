@@ -1,0 +1,43 @@
+name: Deploy carveout using trunk as static page
+
+on:
+  push:
+    branches: ["main"]
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3 
+      
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: nightly
+          target: wasm32-unknown-unknown
+          override: true
+      - uses: Swatinem/rust-cache@v1
+      
+      - run: wget -qO- https://github.com/thedodd/trunk/releases/latest/download/trunk-x86_64-unknown-linux-gnu.tar.gz | tar -xzf-
+      - run: ./trunk build --release
+        
+      #- uses: actions/configure-pages@v2
+      #- uses: actions/upload-pages-artifact@v1
+      #  with:
+      #    path: './dist'   
+      #- uses: actions/deploy-pages@v1
+      
+      - uses: JamesIves/github-pages-deploy-action@v4
+        with:
+          folder: dist
+          # do not keep history of all deployments
+          single-commit: true
