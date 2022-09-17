@@ -95,7 +95,7 @@ impl Gfx {
             framebuffer
           },
           ops: wgpu::Operations {
-            load: wgpu::LoadOp::Clear(wgpu::Color::WHITE),
+            load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
             store: true,
           },
           resolve_target: if MSAA_NSAMPLES == 1 {
