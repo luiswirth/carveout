@@ -1,7 +1,4 @@
-use crate::{
-  gfx::{self, BufferSized},
-  stroke::StrokeManager,
-};
+use crate::{gfx::BufferSized, stroke::StrokeManager};
 
 use std::mem;
 
@@ -72,7 +69,7 @@ impl StrokeRenderer {
       },
       depth_stencil: None,
       multisample: wgpu::MultisampleState {
-        count: gfx::MSAA_NSAMPLES,
+        count: 1,
         mask: !0,
         alpha_to_coverage_enabled: false,
       },
