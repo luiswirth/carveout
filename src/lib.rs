@@ -73,7 +73,8 @@ impl Application {
     let gfx = Gfx::init(&window).await;
 
     let egui_ctx = egui::Context::default();
-    let egui_winit = egui_winit::State::new(&event_loop);
+    let mut egui_winit = egui_winit::State::new(&event_loop);
+    egui_winit.set_pixels_per_point(window.scale_factor() as f32);
     let egui_shapes = None;
     let egui_textures_delta = None;
     let ui = Ui::default();
