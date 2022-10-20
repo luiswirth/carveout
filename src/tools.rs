@@ -51,7 +51,7 @@ impl Default for PenConfig {
   fn default() -> Self {
     Self {
       width: 1.0,
-      color: palette::named::WHITE.into_format().into_linear().into(),
+      color: palette::named::BLACK.into_format().into_linear().into(),
     }
   }
 }
