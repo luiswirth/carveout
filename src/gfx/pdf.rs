@@ -212,7 +212,7 @@ impl PdfRenderer {
       ];
       let page_rect_canvas = Rect::from_size_center(page_size_canvas, page_center_canvas);
 
-      let is_visible = parry2d::query::intersection_test(
+      let _is_visible = parry2d::query::intersection_test(
         &page_rect_canvas.isometry(),
         &page_rect_canvas.shape(),
         &screen_rect_canvas.isometry(),
@@ -226,7 +226,7 @@ impl PdfRenderer {
         was_a_page_rendered = true;
 
         let transform = page_to_texture_renderer_transform(
-          &page,
+          page,
           page_center_canvas,
           texture_size_physical,
           spaces,

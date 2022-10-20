@@ -141,7 +141,7 @@ impl<T> Arena<T> {
           self.free_list_head = next_free;
           self.len += 1;
           Some(ArenaIndex {
-            index: i as u32,
+            index: i,
             generation: self.generation,
           })
         }

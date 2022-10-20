@@ -15,8 +15,6 @@ use crate::{
   content::ContentManager, input::InputManager, spaces::SpaceManager, stroke::StrokeManager,
 };
 
-use palette::LinSrgb;
-
 #[derive(Default)]
 pub struct ToolManager {
   pub selected: ToolEnum,

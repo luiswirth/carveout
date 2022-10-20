@@ -6,7 +6,7 @@ use crate::{
   gfx::stroke::{StrokeMeshGpu, StrokeTessellator},
 };
 
-use palette::{LinSrgb, LinSrgba};
+use palette::LinSrgba;
 use std::collections::HashMap;
 
 #[derive(Default)]

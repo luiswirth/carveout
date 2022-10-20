@@ -7,7 +7,6 @@ use lyon::{
   path::{LineCap, Path},
   tessellation::{StrokeOptions, StrokeTessellator as LyonStrokeTessellator},
 };
-use palette::LinSrgba;
 
 const DEFAULT_STROKE_WIDTH: f32 = 0.005;
 const STROKE_WIDTH_ATTRIBUTE: lyon::path::AttributeIndex = 0;
