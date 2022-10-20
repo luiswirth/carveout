@@ -67,14 +67,7 @@ impl Application {
       .expect("Fatal error: Failed to create winit window.");
 
     #[cfg(target_arch = "wasm32")]
-    web_sys::window()
-      .and_then(|w| w.document())
-      .and_then(|d| d.body())
-      .and_then(|b| {
-        b.append_child(&winit::platform::web::WindowExtWebSys::canvas(&window))
-          .ok()
-      })
-      .expect("Fatal error: Failed to append winit window to html body.");
+    wasm::init(&window);
 
     let input_manager = InputManager::default();
     let gfx = Gfx::init(&window).await;
@@ -250,4 +243,20 @@ impl Application {
 pub async fn run() {
   let app = Application::init().await;
   app.run();
+}
+
+#[cfg(target_arch = "wasm32")]
+mod wasm {
+  use winit::{dpi::PhysicalSize, platform::web::WindowExtWebSys, window::Window};
+  pub fn init(winit_window: &Window) {
+    let web_window = web_sys::window().unwrap();
+    winit_window.set_inner_size(PhysicalSize::new(
+      web_window.inner_width().unwrap().as_f64().unwrap(),
+      web_window.inner_height().unwrap().as_f64().unwrap(),
+    ));
+
+    let document = web_window.document().unwrap();
+    let body = document.body().unwrap();
+    body.append_child(&winit_window.canvas()).unwrap();
+  }
 }
