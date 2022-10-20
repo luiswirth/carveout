@@ -2,7 +2,7 @@
   description = "carveout";
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
     flake-utils.url = "github:numtide/flake-utils";
     rust-overlay.url = "github:oxalica/rust-overlay";
   };
@@ -34,8 +34,7 @@
             clang
             mold
             zlib
-                
-            trunk
+            linuxPackages_latest.perf
 
             vulkan-loader
             vulkan-validation-layers
@@ -46,7 +45,7 @@
             fontconfig
             expat
 
-            linuxPackages_latest.perf
+            trunk
           ];
           VK_LAYER_PATH = "${pkgs.vulkan-validation-layers}/share/vulkan/explicit_layer.d";
           LD_LIBRARY_PATH = "${lib.makeLibraryPath buildInputs}";
