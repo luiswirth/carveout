@@ -19,6 +19,6 @@ pub fn ui_select_loop(ui: &egui::Ui, ui_access: &mut UiAccess) {
     })
     .map(|p| egui::Pos2::new(p.x, p.y))
     .collect();
-  let line = egui::Shape::closed_line(screen_points, stroke);
+  let line = egui::Shape::line(screen_points, stroke);
   painter.add(line);
 }
