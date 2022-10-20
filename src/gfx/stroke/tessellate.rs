@@ -47,7 +47,7 @@ impl StrokeTessellator {
           position: vertex.position_on_path().to_array(),
           normal: vertex.normal().to_array(),
           stroke_width: vertex.interpolated_attributes()[0] * stroke.width_multiplier(),
-          color: util::tuple2array4(LinSrgba::from(stroke.color()).into_components()),
+          color: util::tuple2array4(stroke.color().into_components()),
         }),
       )
       .unwrap();

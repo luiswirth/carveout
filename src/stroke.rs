@@ -6,7 +6,7 @@ use crate::{
   gfx::stroke::{StrokeMeshGpu, StrokeTessellator},
 };
 
-use palette::LinSrgb;
+use palette::{LinSrgb, LinSrgba};
 use std::collections::HashMap;
 
 #[derive(Default)]
@@ -70,10 +70,14 @@ pub struct Stroke {
   /// at least two points
   points_canvas: Vec<na::Point2<f32>>,
   width_multiplier: f32,
-  color: LinSrgb,
+  color: palette::LinSrgba,
 }
 impl Stroke {
-  pub fn new(points: Vec<na::Point2<f32>>, color: LinSrgb, width_multiplier: f32) -> Self {
+  pub fn new(
+    points: Vec<na::Point2<f32>>,
+    color: palette::LinSrgba,
+    width_multiplier: f32,
+  ) -> Self {
     assert!(points.len() >= 2);
     Self {
       points_canvas: points,
@@ -94,7 +98,7 @@ impl Stroke {
     self.width_multiplier
   }
 
-  pub fn color(&self) -> LinSrgb {
+  pub fn color(&self) -> LinSrgba {
     self.color
   }
 }

@@ -136,9 +136,9 @@ impl SidebarUi {
 
             ui.label("Pen color");
             let color = pen.color.into_components();
-            let mut color = [color.0, color.1, color.2];
-            ui.color_edit_button_rgb(&mut color);
-            pen.color = palette::LinSrgb::new(color[0], color[1], color[2]);
+            let mut color = [color.0, color.1, color.2, color.3];
+            ui.color_edit_button_rgba_unmultiplied(&mut color);
+            pen.color = palette::LinSrgba::new(color[0], color[1], color[2], color[3]);
 
             ui.checkbox(&mut self.rainbow_mode, "Rainbow mode");
             if self.rainbow_mode {

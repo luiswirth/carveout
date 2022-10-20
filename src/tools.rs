@@ -47,13 +47,13 @@ pub struct ToolConfigs {
 #[derive(Clone)]
 pub struct PenConfig {
   pub width: f32,
-  pub color: LinSrgb,
+  pub color: palette::LinSrgba,
 }
 impl Default for PenConfig {
   fn default() -> Self {
     Self {
       width: 1.0,
-      color: palette::named::WHITE.into_format().into_linear(),
+      color: palette::named::WHITE.into_format().into_linear().into(),
     }
   }
 }
