@@ -50,7 +50,7 @@ fn arrow(
   painter.add(egui::Shape::convex_polygon(
     vec![arrow_head_start - cross, arrow_head_start + cross, end],
     stroke.color,
-    egui::Stroke::none(),
+    egui::Stroke::NONE,
   ));
   painter.text(
     end + 10.0 * direction,

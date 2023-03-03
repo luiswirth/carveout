@@ -43,6 +43,11 @@ impl Gfx {
     pdf_manager: Option<&PdfManager>,
     spaces: &SpaceManager,
   ) {
+    let mut encoder = self
+      .wgpu
+      .device
+      .create_command_encoder(&wgpu::CommandEncoderDescriptor::default());
+
     self
       .canvas_renderer
       .prepare(&self.wgpu.device, &self.wgpu.queue, spaces, pdf_manager);
@@ -51,10 +56,13 @@ impl Gfx {
       window,
       &self.wgpu.device,
       &self.wgpu.queue,
+      &mut encoder,
       egui_ctx,
       egui_shapes,
       egui_textures_delta,
     );
+
+    self.wgpu.queue.submit(std::iter::once(encoder.finish()));
   }
   pub fn render(&mut self, spaces: &SpaceManager, stroke_manager: &StrokeManager) {
     let surface_texture = match self.wgpu.surface.get_current_texture() {
@@ -124,9 +132,9 @@ pub struct WgpuCtx {
 
 impl WgpuCtx {
   pub async fn init(window: &winit::window::Window) -> Self {
-    let instance = wgpu::Instance::new(wgpu::Backends::all());
+    let instance = wgpu::Instance::new(wgpu::InstanceDescriptor::default());
 
-    let surface = unsafe { instance.create_surface(window) };
+    let surface = unsafe { instance.create_surface(window) }.unwrap();
 
     let adapter = instance
       .request_adapter(&wgpu::RequestAdapterOptions {
@@ -159,13 +167,7 @@ impl WgpuCtx {
       [size.width, size.height]
     };
 
-    let surface_configuration = wgpu::SurfaceConfiguration {
-      usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-      format: surface.get_supported_formats(&adapter)[0],
-      width,
-      height,
-      present_mode: wgpu::PresentMode::Fifo,
-    };
+    let surface_configuration = surface.get_default_config(&adapter, width, height).unwrap();
     surface.configure(&device, &surface_configuration);
 
     Self {

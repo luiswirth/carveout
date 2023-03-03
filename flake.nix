@@ -19,36 +19,63 @@
         pkgs = import nixpkgs {
           inherit system overlays;
         };
+        libPath = with pkgs; lib.makeLibraryPath [
+          libxkbcommon
+
+          # wayland
+          wayland
+
+          # X11
+          xorg.libX11
+          xorg.libXcursor
+          xorg.libXi
+          xorg.libXrandr
+
+          vulkan-loader
+          vulkan-validation-layers
+        ];
+
       in
       with pkgs;
       {
         formatter = nixpkgs-fmt;
 
-        devShells.default = mkShell rec {
+        devShell = mkShell {
           buildInputs = [
+            pkgconfig
             rust-toolchain
             rust-analyzer
             bacon
-
-            pkgconfig
-            clang
-            mold
-            zlib
-            linuxPackages_latest.perf
-
-            vulkan-loader
-            vulkan-validation-layers
-            libxkbcommon
-            wayland
-
-            freetype
-            fontconfig
-            expat
-
+            cargo-edit
             trunk
+
+            xorg.libxcb
           ];
+
+          LD_LIBRARY_PATH = libPath;
           VK_LAYER_PATH = "${pkgs.vulkan-validation-layers}/share/vulkan/explicit_layer.d";
-          LD_LIBRARY_PATH = "${lib.makeLibraryPath buildInputs}";
+        };
+
+        defaultPackage = rustPlatform.buildRustPackage {
+          name = "carveout";
+          src = ./.;
+          cargoLock = {
+            lockFile = ./Cargo.lock;
+            outputHashes = {
+              "encase-0.4.1" = "sha256-xo25yCYPw1y/CbKTmWOyBcTGlijyy9ImMNARc6nn7w0=";
+            };
+          };
+
+          nativeBuildInputs = [
+            rust-toolchain
+            makeWrapper
+          ];
+          buildInputs = [
+            xorg.libxcb
+          ];
+          postInstall = ''
+            wrapProgram "$out/bin/carveout" --prefix LD_LIBRARY_PATH : "${libPath}"
+          '';
         };
       }
     );

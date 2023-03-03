@@ -19,14 +19,9 @@ pub fn enum_variant_eq<T>(a: &T, b: &T) -> bool {
 }
 
 #[allow(dead_code)]
-pub fn rgba_palette2egui(palette: palette::LinSrgba) -> egui::color::Rgba {
+pub fn rgba_palette2egui(palette: palette::LinSrgba) -> egui::Rgba {
   let palette = palette::Blend::into_premultiplied(palette);
-  egui::color::Rgba::from_rgba_premultiplied(
-    palette.red,
-    palette.green,
-    palette.blue,
-    palette.alpha,
-  )
+  egui::Rgba::from_rgba_premultiplied(palette.red, palette.green, palette.blue, palette.alpha)
 }
 
 #[allow(dead_code)]
@@ -41,8 +36,8 @@ pub fn rgba_egui2palette(egui: egui::Rgba) -> palette::LinSrgba {
 }
 
 #[allow(dead_code)]
-pub fn hsva_palette2egui(palette: palette::Hsva) -> egui::color::Hsva {
-  egui::color::Hsva::new(
+pub fn hsva_palette2egui(palette: palette::Hsva) -> egui::ecolor::Hsva {
+  egui::ecolor::Hsva::new(
     palette.hue.to_positive_degrees() / 360.0,
     palette.saturation,
     palette.value,
@@ -51,7 +46,7 @@ pub fn hsva_palette2egui(palette: palette::Hsva) -> egui::color::Hsva {
 }
 
 #[allow(dead_code)]
-pub fn hsva_egui2palette(egui: egui::color::Hsva) -> palette::Hsva {
+pub fn hsva_egui2palette(egui: egui::ecolor::Hsva) -> palette::Hsva {
   palette::Hsva::new(egui.h * 360.0, egui.s, egui.v, egui.a)
 }
 

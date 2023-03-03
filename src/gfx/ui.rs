@@ -1,16 +1,16 @@
 use egui::ClippedPrimitive;
-use egui_wgpu::renderer::{RenderPass as EguiRenderPass, ScreenDescriptor};
+use egui_wgpu::renderer::{Renderer as EguiRenderer, ScreenDescriptor};
 use winit::window::Window;
 
 pub struct UiRenderer {
-  egui_renderer: EguiRenderPass,
+  egui_renderer: EguiRenderer,
   screen_descriptor: ScreenDescriptor,
   primitives: Vec<ClippedPrimitive>,
 }
 
 impl UiRenderer {
   pub fn init(device: &wgpu::Device, format: wgpu::TextureFormat) -> Self {
-    let egui_renderer = EguiRenderPass::new(device, format, 1);
+    let egui_renderer = EguiRenderer::new(device, format, None, 1);
     let screen_descriptor = ScreenDescriptor {
       size_in_pixels: [0; 2],
       pixels_per_point: 0.0,
@@ -29,6 +29,7 @@ impl UiRenderer {
     window: &Window,
     device: &wgpu::Device,
     queue: &wgpu::Queue,
+    encoder: &mut wgpu::CommandEncoder,
     egui_ctx: &egui::Context,
     shapes: Vec<egui::epaint::ClippedShape>,
     textures_delta: egui::TexturesDelta,
@@ -44,9 +45,13 @@ impl UiRenderer {
 
     self.primitives = egui_ctx.tessellate(shapes);
 
-    self
-      .egui_renderer
-      .update_buffers(device, queue, &self.primitives, &self.screen_descriptor);
+    self.egui_renderer.update_buffers(
+      device,
+      queue,
+      encoder,
+      &self.primitives,
+      &self.screen_descriptor,
+    );
     for (tex_id, img_delta) in textures_delta.set {
       self
         .egui_renderer
@@ -58,10 +63,8 @@ impl UiRenderer {
   }
 
   pub fn render<'rp>(&'rp mut self, render_pass: &mut wgpu::RenderPass<'rp>) {
-    self.egui_renderer.execute_with_renderpass(
-      render_pass,
-      &self.primitives,
-      &self.screen_descriptor,
-    )
+    self
+      .egui_renderer
+      .render(render_pass, &self.primitives, &self.screen_descriptor)
   }
 }

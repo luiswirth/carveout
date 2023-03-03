@@ -152,7 +152,7 @@ impl Application {
       _ => {}
     }
 
-    let is_exclusive = self.egui_winit.on_event(&self.egui_ctx, &event);
+    let is_exclusive = self.egui_winit.on_event(&self.egui_ctx, &event).consumed;
     if is_exclusive && !self.ui.canvas().has_focus() {
       return;
     }

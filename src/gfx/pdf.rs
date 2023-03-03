@@ -253,7 +253,7 @@ impl PdfRenderer {
           texture_width_u16,
           texture_height_u16,
           PdfBitmapFormat::default(),
-          page.get_bindings(),
+          page.bindings(),
         )
         .unwrap();
         page
@@ -283,6 +283,7 @@ impl PdfRenderer {
         dimension: wgpu::TextureDimension::D2,
         format: wgpu::TextureFormat::Rgba8UnormSrgb,
         usage: wgpu::TextureUsages::COPY_DST | wgpu::TextureUsages::TEXTURE_BINDING,
+        view_formats: &[],
       });
       queue.write_texture(
         texture.as_image_copy(),

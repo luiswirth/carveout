@@ -20,8 +20,8 @@ fn vs_main(
   var out: VertexOutput;
 
   let canvas_pos = a_pos + a_normal * a_stroke_width;
-  let clip_pos = (u_camera.view_projection * vec3<f32>(canvas_pos, 1.0)).xy;
-  let clip_pos = vec2<f32>(clip_pos.x, -clip_pos.y);
+  let clip_pos_a = (u_camera.view_projection * vec3<f32>(canvas_pos, 1.0)).xy;
+  let clip_pos = vec2<f32>(clip_pos_a.x, -clip_pos_a.y);
 
   out.clip_position = vec4<f32>(clip_pos, 0.0, 1.0);
   out.color = a_color;
