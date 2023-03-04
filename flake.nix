@@ -61,9 +61,6 @@
           src = ./.;
           cargoLock = {
             lockFile = ./Cargo.lock;
-            outputHashes = {
-              "encase-0.4.1" = "sha256-xo25yCYPw1y/CbKTmWOyBcTGlijyy9ImMNARc6nn7w0=";
-            };
           };
 
           nativeBuildInputs = [
