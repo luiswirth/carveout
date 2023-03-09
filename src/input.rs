@@ -139,6 +139,7 @@ impl InputManager {
   }
 
   pub fn handle_event(&mut self, event: &WindowEvent, spaces: &SpaceManager) {
+    dbg!(event);
     let store = &mut self.curr;
     match event {
       WindowEvent::MouseInput { state, button, .. } => {
