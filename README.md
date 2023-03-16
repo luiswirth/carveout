@@ -2,7 +2,47 @@
 
 digital pen note taking
 
-web version on [lwirth.com](https://lwirth.com)
+## Run / Install
+
+### Executable from github release page
+
+x86 Linux executables are provided in the github release page.
+
+### git + cargo
+
+Run with
+```sh
+git clone https://github.com/lu15w1r7h/carveout.git
+cargo run --release
+```
+
+Install with
+```sh
+cargo install --git https://github.com/lu15w1r7h/carveout.git
+```
+
+### In the browser
+
+[lwirth.com](https://lwirth.com)
+using webassembly and webgpu
+
+(still work in progress)
+
+### Nix with flakes
+
+Run with
+```sh
+nix run "github:lu15w1r7h/carveout"
+```
+
+Install with
+```sh
+nix profile install "github:lu15w1r7h/carveout"
+```
+
+## Build with
+
+rust, nix, webgpu/wgpu, webassembly, egui, lyon, nalgebra, parry, pdfium
 
 ## Screenshots
 
