@@ -23,7 +23,7 @@ cargo install --git https://github.com/lu15w1r7h/carveout.git
 
 ### In the browser
 
-[lwirth.com](https://lwirth.com)
+[carveout.lwirth.com](https://carveout.lwirth.com)
 using webassembly and webgpu
 
 (still work in progress)
